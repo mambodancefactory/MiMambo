@@ -83,9 +83,15 @@ export default function Fees() {
 
         // Sort: Newest first
         feesList.sort((a, b) => {
-            const dateA = a.FechaDePago ? new Date(a.FechaDePago).getTime() : 0;
-            const dateB = b.FechaDePago ? new Date(b.FechaDePago).getTime() : 0;
-            return dateB - dateA;
+            const getMs = (val: any) => {
+                if (!val) return 0;
+                if (typeof val === 'object' && val !== null) {
+                    if ('toMillis' in val && typeof val.toMillis === 'function') return val.toMillis();
+                    if ('seconds' in val) return val.seconds * 1000;
+                }
+                return new Date(String(val)).getTime() || 0;
+            };
+            return getMs(b.FechaDePago) - getMs(a.FechaDePago);
         });
 
         setFees(feesList);
@@ -169,37 +175,61 @@ export default function Fees() {
     return fee.TipoCuota || 'Cuota Mensual';
   };
 
-  const getPeriodLabel = (dateString: string) => {
-    if (!dateString) return 'Periodo desconocido';
+  const getPeriodLabel = (dateInput: any) => {
+    if (!dateInput) return 'Periodo desconocido';
     try {
-        let date = new Date(dateString);
-        if (isNaN(date.getTime()) && dateString.includes('/')) {
-             const parts = dateString.split('/');
-             if (parts.length === 3) {
-                 date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-             }
+        let date: Date;
+        if (typeof dateInput === 'object' && dateInput !== null) {
+            if ('toDate' in dateInput && typeof dateInput.toDate === 'function') {
+                date = dateInput.toDate();
+            } else if ('seconds' in dateInput) {
+                date = new Date(dateInput.seconds * 1000);
+            } else {
+                date = new Date(String(dateInput));
+            }
+        } else {
+            const dateString = String(dateInput);
+            date = new Date(dateString);
+            if (isNaN(date.getTime()) && dateString.includes('/')) {
+                 const parts = dateString.split('/');
+                 if (parts.length === 3) {
+                     date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                 }
+            }
         }
-        if (isNaN(date.getTime())) return dateString;
+        if (isNaN(date.getTime())) return String(dateInput);
         return format(date, 'MMMM yyyy', { locale: es });
     } catch (e) {
-        return dateString;
+        return String(dateInput);
     }
   };
 
-  const safeFormatDate = (dateString?: string) => {
-    if (!dateString) return null;
+  const safeFormatDate = (dateInput?: any) => {
+    if (!dateInput) return null;
     try {
-        let date = new Date(dateString);
-        if (isNaN(date.getTime()) && dateString.includes('/')) {
-             const parts = dateString.split('/');
-             if (parts.length === 3) {
-                 date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-             }
+        let date: Date;
+        if (typeof dateInput === 'object' && dateInput !== null) {
+            if ('toDate' in dateInput && typeof dateInput.toDate === 'function') {
+                date = dateInput.toDate();
+            } else if ('seconds' in dateInput) {
+                date = new Date(dateInput.seconds * 1000);
+            } else {
+                date = new Date(String(dateInput));
+            }
+        } else {
+            const dateString = String(dateInput);
+            date = new Date(dateString);
+            if (isNaN(date.getTime()) && dateString.includes('/')) {
+                 const parts = dateString.split('/');
+                 if (parts.length === 3) {
+                     date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                 }
+            }
         }
-        if (isNaN(date.getTime())) return dateString;
+        if (isNaN(date.getTime())) return String(dateInput);
         return format(date, 'd MMM yyyy', { locale: es });
     } catch(e) {
-        return dateString;
+        return String(dateInput);
     }
   };
 

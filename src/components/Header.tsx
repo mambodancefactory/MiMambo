@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, X, Check, UserPlus, Users, Settings, BookOpen, Calendar, MapPin, Info, ShieldCheck, MessageSquare, Image as ImageIcon, Lock, ChevronRight, Clock } from 'lucide-react';
+import { Bell, X, Check, UserPlus, Users, Settings, BookOpen, Calendar, MapPin, Info, ShieldCheck, MessageSquare, Image as ImageIcon, Lock, ChevronRight, Clock, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { collection, query, where, onSnapshot, updateDoc, doc, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc, getDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -183,6 +183,18 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
     }
   };
 
+  const handleDeleteNotification = async (notif: Notification) => {
+    try {
+        if (notif.type === 'vinculacion') {
+            await deleteDoc(doc(db, 'Vinculaciones', notif.id));
+        } else {
+            await deleteDoc(doc(db, 'Notificaciones', notif.id));
+        }
+    } catch (error) {
+        console.error("Error deleting notification", error);
+    }
+  };
+
   const getTitle = (notif: Notification) => {
     switch (notif.type) {
       case 'vinculacion': 
@@ -196,9 +208,14 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
     }
   };
 
+  const pendingCount = notifications.filter(n => n.status === 'Pendiente').length;
+
   return (
     <>
-      <header className="sticky top-0 z-40 bg-gradient-to-b from-white via-white/95 to-white/0 pt-6 pb-6 px-4 -mx-4 mb-2 flex justify-between items-center">
+      <header 
+        className="sticky top-0 z-[100] bg-white pb-3 px-6 -mx-4 mb-6 flex justify-between items-center border-b border-gray-100 shadow-sm"
+        style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top))' }}
+      >
         <div>
           {showGreeting ? (
             <>
@@ -211,21 +228,23 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
         </div>
         <div className="flex items-center gap-3">
           {rightElement}
-          <div className="relative">
+          <div className="relative flex items-center justify-center">
             <button 
                 onClick={() => setShowNotifications(true)}
-                className="w-10 h-10 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-600 shadow-sm hover:bg-gray-100 transition-all"
+                className="text-gray-600 hover:text-[#2e2f43] transition-all p-1"
             >
-              <Bell size={20} />
+              <Bell size={24} />
             </button>
-            {notifications.filter(n => n.status === 'Pendiente' && n.data.ID_Destino === user?.ID_Alumno).length > 0 && (
-              <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-white rounded-full" />
+            {pendingCount > 0 && (
+              <div className="absolute top-0 right-0 w-4 h-4 bg-red-500 border border-white rounded-full flex items-center justify-center text-[9px] text-white font-bold translate-x-1/4 -translate-y-1/4">
+                {pendingCount}
+              </div>
             )}
           </div>
           {/* User Profile Button */}
           <button 
             onClick={() => window.location.href = '/profile'}
-            className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#2e2f43] shadow-sm hover:opacity-80 transition-all"
+            className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#2e2f43] shadow-sm hover:opacity-80 transition-all ml-1"
           >
             <img 
               src={user?.Foto_Alumno || `https://ui-avatars.com/api/?name=${user?.Nombre || 'User'}&background=2e2f43&color=fff`} 
@@ -239,7 +258,7 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
       {/* Notifications Modal */}
       <AnimatePresence>
         {showNotifications && (
-            <div className="fixed inset-0 z-50 flex items-start justify-end p-4 sm:p-6 pointer-events-none">
+            <div className="fixed inset-0 z-[110] flex justify-end pointer-events-none">
                 <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     className="absolute inset-0 bg-black/20 backdrop-blur-sm pointer-events-auto"
@@ -248,7 +267,7 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
 
                 <motion.div
                     initial={{ x: '100%', opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: '100%', opacity: 0 }}
-                    className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden pointer-events-auto relative mt-16 sm:mt-0 flex flex-col max-h-[90vh]"
+                    className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden pointer-events-auto absolute top-[70px] right-4 flex flex-col max-h-[80vh] border border-gray-100"
                 >
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h3 className="font-bold text-gray-800">Notificaciones y Solicitudes</h3>
@@ -265,8 +284,8 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
                             </div>
                         ) : (
                             notifications.map(notif => (
-                                <div key={notif.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-gray-200 transition-all">
-                                    <div className="flex items-start gap-3 mb-3">
+                                <div key={notif.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-gray-200 transition-all group">
+                                    <div className="flex items-start gap-3 mb-3 relative">
                                         <div className={cn(
                                             "p-2 rounded-xl shrink-0",
                                             notif.type === 'vinculacion' ? "bg-blue-50 text-blue-600" :
@@ -276,7 +295,7 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
                                         )}>
                                             {getIcon(notif.type)}
                                         </div>
-                                        <div className="flex-grow">
+                                        <div className="flex-grow pr-6">
                                             <div className="flex justify-between items-start mb-1">
                                                 <p className="text-sm font-black text-[#2e2f43] leading-tight">
                                                     {getTitle(notif)}
@@ -295,6 +314,17 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
                                                 </p>
                                             </div>
                                         </div>
+                                        
+                                        {/* Delete Button */}
+                                        {notif.status !== 'Pendiente' && (
+                                            <button 
+                                                onClick={() => handleDeleteNotification(notif)}
+                                                className="absolute -top-2 -right-2 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all opacity-0 group-hover:opacity-100 sm:opacity-100"
+                                                title="Eliminar notificación"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        )}
                                     </div>
 
                                     {/* Detailed Cards */}
