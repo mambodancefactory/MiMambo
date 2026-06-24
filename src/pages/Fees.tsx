@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import { format, parseISO, startOfDay, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
+import { safeToDate } from '@/hooks/useRecovery';
 
 interface PagoCuota {
   id: string;
@@ -112,43 +113,28 @@ export default function Fees() {
         });
 
         // Get user assignments
-        const assignmentsQ = query(
-            collection(db, 'Cursos_Asignacion_Alumnos'),
-            where('ID_Alumno', '==', user.ID_Alumno)
-        );
-        const assignmentsSnap = await getDocs(assignmentsQ);
+        let courseIds: string[] = [];
+        if (user.cursosInscritos && Array.isArray(user.cursosInscritos)) {
+            courseIds = user.cursosInscritos.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
+        } else {
+            const assignmentsQ = query(
+                collection(db, 'Cursos_Asignacion_Alumnos'),
+                where('ID_Alumno', '==', user.ID_Alumno)
+            );
+            const assignmentsSnap = await getDocs(assignmentsQ);
+            courseIds = assignmentsSnap.docs.map(doc => doc.data().ID_Curso);
+        }
         
         const todayDate = startOfDay(new Date());
 
-        const userCourses = assignmentsSnap.docs
-            .map(doc => courseMap[doc.data().ID_Curso])
+        const userCourses = courseIds
+            .map(id => courseMap[id])
             .filter(Boolean)
             .filter(course => {
                 // Filter for active courses only
                 if (!course.FechaFinCurso) return true;
                 
-                let end = new Date();
-                
-                if (course.FechaFinCurso instanceof Timestamp) {
-                    end = course.FechaFinCurso.toDate();
-                } else {
-                    let dateStr = String(course.FechaFinCurso);
-                    if (dateStr.includes('/')) dateStr = dateStr.replace(/\//g, '-');
-                    
-                    if (!dateStr.startsWith('20')) {
-                        const parts = dateStr.split('-');
-                        if (parts.length === 3 && parts[2].length === 4) {
-                            dateStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                        }
-                    }
-                    
-                    const parsed = parseISO(dateStr);
-                    if (!isNaN(parsed.getTime())) {
-                        end = parsed;
-                    } else {
-                        return true; 
-                    }
-                }
+                const end = safeToDate(course.FechaFinCurso);
                 
                 return !isBefore(startOfDay(end), todayDate); 
             });

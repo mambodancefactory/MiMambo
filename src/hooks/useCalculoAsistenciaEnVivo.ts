@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { startOfMonth, subMonths, format, startOfDay, isBefore, parseISO, startOfQuarter, endOfQuarter } from 'date-fns';
+import { safeToDate } from './useRecovery';
 
 interface AttendanceResult {
   saldoActual: number;
@@ -87,20 +88,24 @@ export function useCalculoAsistenciaEnVivo(idAlumno: string | undefined): Attend
             console.warn('Error fetching kickoff date:', err);
         }
 
-        // 3. Obtener Asignaciones de Cursos
-        const assignmentsQ = query(
-          collection(db, 'Cursos_Asignacion_Alumnos'),
-          where('ID_Alumno', '==', idAlumno)
-        );
-        const assignmentsSnap = await getDocs(assignmentsQ);
-        const assignments = assignmentsSnap.docs.map(d => {
-            const data = d.data();
+        // 3. Obtener Asignaciones de Cursos y Datos del Alumno (con cursosInscritos y metricasAsistencia)
+        const alumnoDocRef = doc(db, 'Alumnos', idAlumno);
+        const alumnoSnap = await getDoc(alumnoDocRef);
+        if (!alumnoSnap.exists()) {
+          setResult(prev => ({ ...prev, isLoading: false, error: 'Alumno no encontrado' }));
+          return;
+        }
+        const alumnoData = alumnoSnap.data();
+
+        const cursosInscritos = alumnoData.cursosInscritos || [];
+        const assignments = cursosInscritos.map((c: any) => {
             let date = new Date(0); 
-            if (data.FechaAsignacion) {
-                if (data.FechaAsignacion instanceof Timestamp) {
-                    date = data.FechaAsignacion.toDate();
-                } else if (typeof data.FechaAsignacion === 'string') {
-                     let dStr = data.FechaAsignacion;
+            const fechaAsignacion = c.fechaAsignacion || c.FechaAsignacion;
+            if (fechaAsignacion) {
+                if (fechaAsignacion instanceof Timestamp) {
+                    date = fechaAsignacion.toDate();
+                } else if (typeof fechaAsignacion === 'string') {
+                     let dStr = fechaAsignacion;
                      if (dStr.includes('/')) {
                          const parts = dStr.split(/[/\s:]/); 
                          if (parts.length >= 3) {
@@ -115,12 +120,12 @@ export function useCalculoAsistenciaEnVivo(idAlumno: string | undefined): Attend
                 }
             }
             return {
-                ID_Curso: data.ID_Curso,
+                ID_Curso: c.id || c.ID_Curso,
                 FechaAsignacion: startOfDay(date)
             };
-        });
+        }).filter((a: any) => a.ID_Curso);
         
-        const courseIds = assignments.map(a => a.ID_Curso);
+        const courseIds = assignments.map((a: any) => a.ID_Curso);
 
         // 4. Obtener Días Festivos
         const holidaysSnap = await getDocs(collection(db, 'Dias Festivos'));
@@ -138,10 +143,17 @@ export function useCalculoAsistenciaEnVivo(idAlumno: string | undefined): Attend
 
         // 5. Obtener Clases (del TRIMESTRE actual hasta hoy)
         let classes: any[] = [];
+        let computedFaltasMes = 0;
+        let computedRecuperacionesMes = 0;
+        let computedAsistenciasTrimestre = 0;
+        let computedFaltasTrimestre = 0;
+        let computedRecuperacionesTrimestre = 0;
+
         if (courseIds.length > 0) {
+            // Firestore supports 'in' query with up to 30 courseIds
             const classesQ = query(
                 collection(db, 'Clases'),
-                where('ID_Curso', 'in', courseIds)
+                where('ID_Curso', 'in', courseIds.slice(0, 30))
             );
             const classesSnap = await getDocs(classesQ);
             
@@ -158,7 +170,7 @@ export function useCalculoAsistenciaEnVivo(idAlumno: string | undefined): Attend
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                      const parts = dateStr.split('-');
                      if (parts.length === 3 && parts[2].length === 4) {
-                         dateStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                          dateStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
                      }
                 }
 
@@ -166,7 +178,9 @@ export function useCalculoAsistenciaEnVivo(idAlumno: string | undefined): Attend
                     id: d.id,
                     ID_Curso: data.ID_Curso,
                     dateStr: dateStr,
-                    Anulacion: data.Anulacion
+                    Anulacion: data.Anulacion,
+                    registro_en_vivo: data.registro_en_vivo || {},
+                    registro_recuperaciones_en_vivo: data.registro_recuperaciones_en_vivo || {}
                 };
             }).filter(c => {
                 if (c.Anulacion === true || c.Anulacion === 'true') return false;
@@ -174,116 +188,112 @@ export function useCalculoAsistenciaEnVivo(idAlumno: string | undefined): Attend
                 // Filter range: StartOfQuarter <= Date <= Today
                 return c.dateStr >= startQuarterStr && c.dateStr <= todayStr;
             });
-        }
 
-        // 6. Obtener Asistencia (Clases Regulares)
-        const attendanceQ = query(
-            collection(db, 'Asistencia_Clases_Regulares'),
-            where('ID_Alumno', '==', idAlumno)
-        );
-        const attendanceSnap = await getDocs(attendanceQ);
-        const attendanceSet = new Set<string>(); 
-        let asistenciasTrimestre = 0;
-        
-        attendanceSnap.docs.forEach(d => {
-            const data = d.data();
-            if (data.ID_Clase) attendanceSet.add(data.ID_Clase);
-            
-            // Count for quarter stats
-            // We need the date of the attendance to filter by quarter
-            let dateStr = '';
-            if (data.Timestamp_Entrada instanceof Timestamp) {
-                dateStr = format(data.Timestamp_Entrada.toDate(), 'yyyy-MM-dd');
-            } else if (typeof data.Timestamp_Entrada === 'string') {
-                 if (data.Timestamp_Entrada.match(/^\d{4}-\d{2}-\d{2}/)) {
-                     dateStr = data.Timestamp_Entrada.substring(0, 10);
-                 }
-            }
-            
-            if (dateStr && dateStr >= startQuarterStr && dateStr <= todayStr) {
-                asistenciasTrimestre++;
-            }
-        });
+            // Fallback fetches for legacy database structures
+            const attendanceQ = query(
+                collection(db, 'Asistencia_Clases_Regulares'),
+                where('ID_Alumno', '==', idAlumno)
+            );
+            const attendanceSnap = await getDocs(attendanceQ);
+            const attendanceSet = new Set<string>();
+            attendanceSnap.docs.forEach(d => {
+                const data = d.data();
+                if (data.ID_Clase) attendanceSet.add(data.ID_Clase);
+            });
 
-        // 7. Obtener Recuperaciones (del TRIMESTRE actual)
-        const recoveriesQ = query(
-            collection(db, 'Asistencia_Recuperaciones'),
-            where('ID_Alumno', '==', idAlumno)
-        );
-        const recoveriesSnap = await getDocs(recoveriesQ);
-        
-        let recuperacionesMes = 0;
-        let recuperacionesTrimestre = 0;
-        
-        recoveriesSnap.docs.forEach(d => {
-            const data = d.data();
-            let dateStr = '';
-            if (data.Timestamp_Entrada instanceof Timestamp) {
-                dateStr = format(data.Timestamp_Entrada.toDate(), 'yyyy-MM-dd');
-            } else if (typeof data.Timestamp_Entrada === 'string') {
-                 if (data.Timestamp_Entrada.match(/^\d{4}-\d{2}-\d{2}/)) {
-                     dateStr = data.Timestamp_Entrada.substring(0, 10);
-                 }
-            }
-            
-            if (dateStr) {
-                // For Balance (Current Month)
-                if (dateStr >= startMonthStr && dateStr <= todayStr) {
-                    recuperacionesMes++;
+            const recoveriesQ = query(
+                collection(db, 'Asistencia_Recuperaciones'),
+                where('ID_Alumno', '==', idAlumno)
+            );
+            const recoveriesSnap = await getDocs(recoveriesQ);
+            const legacyRecoveriesSet = new Set<string>();
+            recoveriesSnap.docs.forEach(d => {
+                const data = d.data();
+                let dateStr = '';
+                if (data.Timestamp_Entrada instanceof Timestamp) {
+                    dateStr = format(data.Timestamp_Entrada.toDate(), 'yyyy-MM-dd');
+                } else if (typeof data.Timestamp_Entrada === 'string') {
+                    dateStr = data.Timestamp_Entrada.split('T')[0];
                 }
-                // For Stats (Current Quarter)
-                if (dateStr >= startQuarterStr && dateStr <= todayStr) {
-                    recuperacionesTrimestre++;
+                if (dateStr) legacyRecoveriesSet.add(dateStr);
+            });
+
+            // Perform counts crossing the details
+            for (const cls of classes) {
+                const assignment = assignments.find((a: any) => a.ID_Curso === cls.ID_Curso);
+                if (!assignment) continue; 
+                
+                const classDate = parseISO(cls.dateStr);
+                if (isBefore(classDate, assignment.FechaAsignacion)) continue;
+                if (fechaKickoff && isBefore(classDate, startOfDay(fechaKickoff))) continue;
+                if (holidays.has(cls.dateStr)) continue;
+
+                const hasAttendanceRecord = Object.prototype.hasOwnProperty.call(cls.registro_en_vivo, idAlumno);
+                const hasRecoveryRecord = cls.registro_recuperaciones_en_vivo[idAlumno] === true;
+
+                let attended = false;
+                let missed = false;
+                let recovered = false;
+
+                if (hasAttendanceRecord) {
+                    attended = cls.registro_en_vivo[idAlumno] === true;
+                    missed = cls.registro_en_vivo[idAlumno] === false;
+                } else {
+                    attended = attendanceSet.has(cls.id);
+                    missed = !attended;
                 }
-            }
-        });
 
-        // 8. Cruce de Datos (Cálculo de Faltas)
-        let faltasMes = 0;
-        let faltasTrimestre = 0;
+                if (hasRecoveryRecord) {
+                    recovered = true;
+                } else {
+                    recovered = legacyRecoveriesSet.has(cls.dateStr);
+                }
 
-        for (const cls of classes) {
-            // a) Clase >= FechaAsignacion
-            const assignment = assignments.find(a => a.ID_Curso === cls.ID_Curso);
-            if (!assignment) continue; 
-            
-            const classDate = parseISO(cls.dateStr);
-            if (isBefore(classDate, assignment.FechaAsignacion)) continue;
-
-            // b) Clase >= Fecha_Kickoff_Sistema
-            if (fechaKickoff && isBefore(classDate, startOfDay(fechaKickoff))) continue;
-
-            // c) No es festivo
-            if (holidays.has(cls.dateStr)) continue;
-
-            // d) No hay asistencia
-            if (attendanceSet.has(cls.id)) continue;
-
-            // If we are here, it's an absence
-            
-            // Check if it belongs to current month (for Balance)
-            if (cls.dateStr >= startMonthStr && cls.dateStr <= todayStr) {
-                faltasMes++;
-            }
-            
-            // Check if it belongs to current quarter (for Stats)
-            // (Already filtered by query, but double check range)
-            if (cls.dateStr >= startQuarterStr && cls.dateStr <= todayStr) {
-                faltasTrimestre++;
+                if (attended) {
+                    if (cls.dateStr >= startQuarterStr && cls.dateStr <= todayStr) {
+                        computedAsistenciasTrimestre++;
+                    }
+                }
+                if (missed) {
+                    if (cls.dateStr >= startMonthStr && cls.dateStr <= todayStr) {
+                        computedFaltasMes++;
+                    }
+                    if (cls.dateStr >= startQuarterStr && cls.dateStr <= todayStr) {
+                        computedFaltasTrimestre++;
+                    }
+                }
+                if (recovered) {
+                    if (cls.dateStr >= startMonthStr && cls.dateStr <= todayStr) {
+                        computedRecuperacionesMes++;
+                    }
+                    if (cls.dateStr >= startQuarterStr && cls.dateStr <= todayStr) {
+                        computedRecuperacionesTrimestre++;
+                    }
+                }
             }
         }
 
-        // 9. Saldo Final (Solo afecta el mes actual + histórico)
-        const rawBalance = saldoHistorico + faltasMes - recuperacionesMes;
-        const saldoActual = Math.min(10, Math.max(0, rawBalance));
+        // Prioritize metricasAsistencia if defined on user document as per "consultas rápidas"
+        const metricas = alumnoData.metricasAsistencia || alumnoData.metricas_asistencia || {};
+        
+        const activeTicketsCount = alumnoData.bolsaRecuperaciones?.filter((t: any) => 
+            t.usado === false && safeToDate(t.caducidad) >= today
+        ).length ?? 0;
+
+        const saldoActual = metricas.saldoActual ?? metricas.saldo ?? metricas.saldoRecuperaciones ?? activeTicketsCount;
+        const finalFaltasMes = metricas.faltasMes ?? metricas.faltas_mes ?? metricas.falta ?? computedFaltasMes;
+        const finalRecuperacionesMes = metricas.recuperacionesMes ?? metricas.recuperaciones_mes ?? metricas.recupera ?? computedRecuperacionesMes;
+        const finalAsistenciasTrimestre = metricas.asistenciasTrimestre ?? metricas.asistencias_trimestre ?? metricas.asistencias ?? metricas.asiste ?? computedAsistenciasTrimestre;
+        const finalFaltasTrimestre = metricas.faltasTrimestre ?? metricas.faltas_trimestre ?? metricas.faltas ?? metricas.falta ?? computedFaltasTrimestre;
+        const finalRecuperacionesTrimestre = metricas.recuperacionesTrimestre ?? metricas.recuperaciones_trimestre ?? metricas.recuperaciones ?? metricas.recupera ?? computedRecuperacionesTrimestre;
 
         setResult({
             saldoActual,
-            faltasMes,
-            recuperacionesMes,
-            asistenciasTrimestre,
-            faltasTrimestre,
-            recuperacionesTrimestre,
+            faltasMes: finalFaltasMes,
+            recuperacionesMes: finalRecuperacionesMes,
+            asistenciasTrimestre: finalAsistenciasTrimestre,
+            faltasTrimestre: finalFaltasTrimestre,
+            recuperacionesTrimestre: finalRecuperacionesTrimestre,
             currentQuarterLabel: quarterLabel,
             isLoading: false,
             error: null

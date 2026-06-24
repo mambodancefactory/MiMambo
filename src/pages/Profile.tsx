@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/context/AuthContext';
+import { safeToDate } from '@/hooks/useRecovery';
 import { Camera, LogOut, Settings, Upload, Loader2, Link as LinkIcon, X, Search, QrCode, AlertTriangle, Plus, Info, Lock, Shield, CheckCircle, XCircle, ChevronRight, ShieldCheck, MessageSquare, Image as ImageIcon, User } from 'lucide-react';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -418,6 +419,55 @@ export default function Profile() {
             </div>
         </div>
       </GlassCard>
+
+      {/* Bolsa de Recuperaciones */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-4">
+        <div className="flex items-center gap-3 mb-4">
+            <div className="bg-purple-100 p-2 rounded-lg text-purple-600">
+                <Search size={20} />
+            </div>
+            <div>
+                <h3 className="font-bold text-gray-800">Bolsa de Recuperaciones</h3>
+                <p className="text-xs text-gray-500">Tickets disponibles para recuperar clases</p>
+            </div>
+        </div>
+
+        {(() => {
+            const hoy = new Date();
+            const tickets = user?.bolsaRecuperaciones?.filter((ticket: any) => 
+                ticket.usado === false && safeToDate(ticket.caducidad) >= hoy
+            ) || [];
+
+            if (tickets.length === 0) {
+                return (
+                    <div className="text-center p-6 bg-gray-50 rounded-xl border border-gray-100">
+                        <p className="text-sm font-medium text-gray-500">No tienes tickets de recuperación disponibles.</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="space-y-3">
+                    {tickets.map((ticket: any, index: number) => (
+                        <div key={ticket.idAsistencia || index} className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-xs font-black uppercase tracking-wider text-purple-600 bg-purple-100 px-2 py-1 rounded-md">
+                                    {ticket.disciplina}
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-400">
+                                    Vence: {safeToDate(ticket.caducidad).toLocaleDateString('es-ES')}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-bold text-gray-800">{ticket.nivel}</p>
+                                <p className="text-xs font-medium text-gray-600 capitalize">{ticket.modalidad}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        })()}
+      </div>
 
       {/* Actions */}
       <div className="space-y-4">

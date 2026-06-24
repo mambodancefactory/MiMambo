@@ -6,8 +6,9 @@ import { db } from '@/lib/firebase';
 function normalizeFirestoreData(data: any): any {
   if (data === null || data === undefined) return data;
   
+  // Do NOT convert Timestamp to string so we can use .toDate() natively
   if (data instanceof Timestamp) {
-    return data.toDate().toISOString();
+    return data;
   }
   
   if (Array.isArray(data)) {
@@ -20,15 +21,6 @@ function normalizeFirestoreData(data: any): any {
       normalized[key] = normalizeFirestoreData(data[key]);
     }
     return normalized;
-  }
-  
-  // Handle some objects that might be plain objects with seconds/nanoseconds
-  if (typeof data === 'object' && 'seconds' in data && 'nanoseconds' in data) {
-    try {
-      return new Date(data.seconds * 1000).toISOString();
-    } catch (e) {
-      return data;
-    }
   }
   
   return data;

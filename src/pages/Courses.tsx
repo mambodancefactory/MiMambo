@@ -99,12 +99,17 @@ export default function Courses() {
         // 2. Fetch Enrolled Courses, Pending Requests & Fee Info
         if (user) {
             // Enrolled Courses
-            const assignmentsQ = query(
-                collection(db, 'Cursos_Asignacion_Alumnos'),
-                where('ID_Alumno', '==', user.ID_Alumno)
-            );
-            const assignmentsSnap = await getDocs(assignmentsQ);
-            const enrolledIds = new Set(assignmentsSnap.docs.map(doc => doc.data().ID_Curso));
+            let enrolledIds = new Set<string>();
+            if (user.cursosInscritos && Array.isArray(user.cursosInscritos)) {
+                enrolledIds = new Set(user.cursosInscritos.map((c: any) => c.id || c.ID_Curso).filter(Boolean));
+            } else {
+                const assignmentsQ = query(
+                    collection(db, 'Cursos_Asignacion_Alumnos'),
+                    where('ID_Alumno', '==', user.ID_Alumno)
+                );
+                const assignmentsSnap = await getDocs(assignmentsQ);
+                enrolledIds = new Set(assignmentsSnap.docs.map(doc => doc.data().ID_Curso));
+            }
             setEnrolledCourseIds(enrolledIds);
 
             // Pending Requests

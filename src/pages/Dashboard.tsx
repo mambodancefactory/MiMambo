@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInHours } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { BattlepassWidget } from '@/components/BattlepassWidget';
-import { addDoc, collection, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Header } from '@/components/Header';
 
@@ -26,6 +26,7 @@ export default function Dashboard() {
 
     setMarkingAttendance(true);
     try {
+      // 1. Write legacy record for backup
       await addDoc(collection(db, 'Asistencia_Clases_Regulares'), {
         ID_Alumno: user.ID_Alumno,
         ID_Clase: nextClass.id,
@@ -33,6 +34,13 @@ export default function Dashboard() {
         Metodo_Entrada: 'App',
         Estado: 'Presente'
       });
+
+      // 2. Update Class document with in-vivo attendance
+      const classRef = doc(db, 'Clases', nextClass.id);
+      await updateDoc(classRef, {
+        [`registro_en_vivo.${user.ID_Alumno}`]: true
+      });
+
       setAttendanceSuccess(true);
       setTimeout(() => {
         setShowAttendanceModal(false);

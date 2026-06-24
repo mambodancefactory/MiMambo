@@ -15,6 +15,8 @@ import { Header } from '@/components/Header';
 import { cn } from '@/lib/utils';
 import { Star, ChevronRight } from 'lucide-react';
 
+import { safeToDate } from '@/hooks/useRecovery';
+
 interface Course {
   ID_Curso: string;
   NombreCurso: string;
@@ -65,12 +67,17 @@ export default function Classes() {
     const fetchData = async () => {
       try {
         // 1. Fetch Courses
-        const assignmentsQ = query(
-          collection(db, 'Cursos_Asignacion_Alumnos'),
-          where('ID_Alumno', '==', user.ID_Alumno)
-        );
-        const assignmentsSnap = await getDocs(assignmentsQ);
-        const courseIds = assignmentsSnap.docs.map(doc => doc.data().ID_Curso);
+        let courseIds: string[] = [];
+        if (user.cursosInscritos && Array.isArray(user.cursosInscritos)) {
+          courseIds = user.cursosInscritos.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
+        } else {
+          const assignmentsQ = query(
+            collection(db, 'Cursos_Asignacion_Alumnos'),
+            where('ID_Alumno', '==', user.ID_Alumno)
+          );
+          const assignmentsSnap = await getDocs(assignmentsQ);
+          courseIds = assignmentsSnap.docs.map(doc => doc.data().ID_Curso);
+        }
 
         if (courseIds.length > 0) {
           const coursesQ = query(collection(db, 'Cursos'), where('ID_Curso', 'in', courseIds));
@@ -83,15 +90,11 @@ export default function Classes() {
             .filter(course => {
               if (!course.FechaInicioCurso || !course.FechaFinCurso) return false;
 
-              const start = course.FechaInicioCurso instanceof Timestamp 
-                ? course.FechaInicioCurso.toDate() 
-                : parseISO(course.FechaInicioCurso as string);
-              
-              const end = course.FechaFinCurso instanceof Timestamp 
-                ? course.FechaFinCurso.toDate() 
-                : parseISO(course.FechaFinCurso as string);
+              const start = safeToDate(course.FechaInicioCurso);
+              const end = safeToDate(course.FechaFinCurso);
 
-              return today >= start && today <= end;
+              // Allow courses that haven't ended yet
+              return today <= end;
             });
 
           setMyCourses(activeCourses);

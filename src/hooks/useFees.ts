@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { isWithinInterval, parseISO } from 'date-fns';
+import { isWithinInterval } from 'date-fns';
+import { safeToDate } from './useRecovery';
 
 export function useFees() {
   const { user } = useAuth();
@@ -15,12 +16,17 @@ export function useFees() {
     const calculateFee = async () => {
       try {
         // 1. Fetch Assignments
-        const assignmentsQ = query(
-          collection(db, 'Cursos_Asignacion_Alumnos'),
-          where('ID_Alumno', '==', user.ID_Alumno)
-        );
-        const assignmentsSnap = await getDocs(assignmentsQ);
-        const courseIds = assignmentsSnap.docs.map(d => d.data().ID_Curso);
+        let courseIds: string[] = [];
+        if (user.cursosInscritos && Array.isArray(user.cursosInscritos)) {
+          courseIds = user.cursosInscritos.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
+        } else {
+          const assignmentsQ = query(
+            collection(db, 'Cursos_Asignacion_Alumnos'),
+            where('ID_Alumno', '==', user.ID_Alumno)
+          );
+          const assignmentsSnap = await getDocs(assignmentsQ);
+          courseIds = assignmentsSnap.docs.map(d => d.data().ID_Curso);
+        }
 
         let activeCoursesCount = 0;
 
@@ -33,8 +39,8 @@ export function useFees() {
 
           coursesSnap.docs.forEach(doc => {
             const data = doc.data();
-            const start = parseISO(data.FechaInicioCurso);
-            const end = parseISO(data.FechaFinCurso);
+            const start = safeToDate(data.FechaInicioCurso);
+            const end = safeToDate(data.FechaFinCurso);
 
             if (isWithinInterval(today, { start, end })) {
               activeCoursesCount++;
