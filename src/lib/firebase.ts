@@ -3,12 +3,12 @@ import { getFirestore, initializeFirestore, persistentLocalCache, persistentMult
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: "AIzaSyDb_ElYJY38bx35mZnOXbUzcHlLYkZjBmg",
+  authDomain: "escueladebaile-app.firebaseapp.com",
+  projectId: "escueladebaile-app",
+  storageBucket: "escueladebaile-app.firebasestorage.app",
+  messagingSenderId: "872896104919",
+  appId: "1:872896104919:web:aff40eceee9ebd28342392"
 };
 
 if (!firebaseConfig.apiKey) {
