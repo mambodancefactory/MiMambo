@@ -172,9 +172,33 @@ export default function Fees() {
   const getPeriodLabel = (dateString: string) => {
     if (!dateString) return 'Periodo desconocido';
     try {
-        const date = parseISO(dateString);
+        let date = new Date(dateString);
+        if (isNaN(date.getTime()) && dateString.includes('/')) {
+             const parts = dateString.split('/');
+             if (parts.length === 3) {
+                 date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+             }
+        }
+        if (isNaN(date.getTime())) return dateString;
         return format(date, 'MMMM yyyy', { locale: es });
     } catch (e) {
+        return dateString;
+    }
+  };
+
+  const safeFormatDate = (dateString?: string) => {
+    if (!dateString) return null;
+    try {
+        let date = new Date(dateString);
+        if (isNaN(date.getTime()) && dateString.includes('/')) {
+             const parts = dateString.split('/');
+             if (parts.length === 3) {
+                 date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+             }
+        }
+        if (isNaN(date.getTime())) return dateString;
+        return format(date, 'd MMM yyyy', { locale: es });
+    } catch(e) {
         return dateString;
     }
   };
@@ -218,7 +242,7 @@ export default function Fees() {
                             {getPeriodLabel(currentFee.FechaDePago)}
                         </p>
                         <h2 className={`text-5xl font-black tracking-tighter ${isCurrentPaid ? 'text-[#2e2f43]' : 'text-white'}`}>
-                            {(currentFee.Total || currentFee.Cuota).toFixed(2)}<span className="text-2xl ml-1">€</span>
+                            {(currentFee.Total ?? currentFee.Cuota ?? 0).toFixed(2)}<span className="text-2xl ml-1">€</span>
                         </h2>
                     </div>
                     <div className={`p-4 rounded-2xl shadow-lg ${isCurrentPaid ? 'bg-yellow-100 text-yellow-600' : 'bg-white/20 text-white backdrop-blur-md'}`}>
@@ -294,7 +318,7 @@ export default function Fees() {
                         {isCurrentPaid ? (
                             <>
                                 <CheckCircle size={16} />
-                                <span>Pagado el {currentFee.FechaEstadoPagado ? format(parseISO(currentFee.FechaEstadoPagado), 'd MMM yyyy', { locale: es }) : '---'}</span>
+                                <span>Pagado el {safeFormatDate(currentFee.FechaEstadoPagado) || '---'}</span>
                             </>
                         ) : (
                             <>
@@ -331,9 +355,7 @@ export default function Fees() {
             {fees.slice(1, 6).map((fee) => { // Skip current, show next 5
                 const isPaid = fee.Estado === 'Pagado';
                 const periodLabel = getPeriodLabel(fee.FechaDePago);
-                const paymentDateLabel = fee.FechaEstadoPagado 
-                    ? format(parseISO(fee.FechaEstadoPagado), 'd MMM yyyy', { locale: es })
-                    : null;
+                const paymentDateLabel = safeFormatDate(fee.FechaEstadoPagado);
 
                 return (
                 <div key={fee.id} className="bg-white/60 backdrop-blur-xl rounded-2xl p-4 border border-white/80 shadow-sm flex justify-between items-center group hover:bg-white/80 transition-all">
@@ -356,7 +378,7 @@ export default function Fees() {
                         </div>
                     </div>
                     <div className="text-right">
-                        <p className="text-base font-black text-[#2e2f43]">{(fee.Total || fee.Cuota).toFixed(2)}€</p>
+                        <p className="text-base font-black text-[#2e2f43]">{(fee.Total ?? fee.Cuota ?? 0).toFixed(2)}€</p>
                         <div className="flex items-center justify-end gap-2 mt-1">
                             <span className={`text-[9px] font-black uppercase tracking-tighter ${isPaid ? 'text-[#2e2f43]' : 'text-red-500'}`}>
                                 {fee.Estado}

@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/context/AuthContext';
-import QRCode from 'react-qr-code';
 import { Camera, LogOut, Settings, Upload, Loader2, Link as LinkIcon, X, Search, QrCode, AlertTriangle, Plus, Info, Lock, Shield, CheckCircle, XCircle, ChevronRight, ShieldCheck, MessageSquare, Image as ImageIcon, User } from 'lucide-react';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -365,20 +364,6 @@ export default function Profile() {
         </span>
         <p className="text-xs text-gray-400 mt-2">Toca la foto para cambiarla</p>
       </div>
-
-      {/* QR Code */}
-      <GlassCard className="flex flex-col items-center justify-center py-8">
-        <div className="bg-white p-4 rounded-xl shadow-inner">
-          <QRCode 
-            value={user?.ID_Alumno || 'unknown'} 
-            size={180}
-            level="H"
-            fgColor="#1F2937"
-          />
-        </div>
-        <p className="text-xs text-gray-400 mt-4 font-mono">{user?.ID_Alumno}</p>
-        <p className="text-sm text-gray-500 mt-1">Escanea para asistencia</p>
-      </GlassCard>
 
       {/* Student Details Card */}
       <GlassCard className="p-6">

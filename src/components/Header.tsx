@@ -198,7 +198,7 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
 
   return (
     <>
-      <header className="flex justify-between items-center px-2 mb-6 relative z-30">
+      <header className="sticky top-0 z-40 bg-gradient-to-b from-white via-white/95 to-white/0 pt-6 pb-6 px-4 -mx-4 mb-2 flex justify-between items-center">
         <div>
           {showGreeting ? (
             <>
@@ -209,12 +209,12 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
             <h1 className="text-2xl font-bold text-[#2e2f43]">{title}</h1>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {rightElement}
           <div className="relative">
             <button 
                 onClick={() => setShowNotifications(true)}
-                className="w-10 h-10 rounded-xl bg-white/50 backdrop-blur-md border border-white/60 flex items-center justify-center text-gray-600 shadow-sm hover:bg-white/80 transition-all"
+                className="w-10 h-10 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-600 shadow-sm hover:bg-gray-100 transition-all"
             >
               <Bell size={20} />
             </button>
@@ -222,6 +222,17 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
               <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-white rounded-full" />
             )}
           </div>
+          {/* User Profile Button */}
+          <button 
+            onClick={() => window.location.href = '/profile'}
+            className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#2e2f43] shadow-sm hover:opacity-80 transition-all"
+          >
+            <img 
+              src={user?.Foto_Alumno || `https://ui-avatars.com/api/?name=${user?.Nombre || 'User'}&background=2e2f43&color=fff`} 
+              alt="Perfil" 
+              className="w-full h-full object-cover"
+            />
+          </button>
         </div>
       </header>
 
