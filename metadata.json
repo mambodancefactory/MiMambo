@@ -1,0 +1,5 @@
+{
+  "name": "Mi Mambo",
+  "description": "PWA para gestión de alumnos de danza con estilo Liquid Glass",
+  "requestFramePermissions": ["camera"]
+}
