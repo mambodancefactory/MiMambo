@@ -130,22 +130,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Strategy 2: Queries
     if (!userData) {
-      const queries = [
-        query(collection(db, 'Alumnos'), where('Email', '==', input)),
-        query(collection(db, 'Alumnos'), where('Email', '==', lowerInput)),
-        query(collection(db, 'Alumnos'), where('ID_Alumno', '==', input)),
-        query(collection(db, 'Alumnos'), where('ID_Alumno', '==', lowerInput)),
-        query(collection(db, 'Alumnos'), where('ID_Alumno', '==', upperInput)),
-      ];
+      try {
+        const queries = [
+          query(collection(db, 'Alumnos'), where('Email', '==', input)),
+          query(collection(db, 'Alumnos'), where('Email', '==', lowerInput)),
+          query(collection(db, 'Alumnos'), where('ID_Alumno', '==', input)),
+          query(collection(db, 'Alumnos'), where('ID_Alumno', '==', lowerInput)),
+          query(collection(db, 'Alumnos'), where('ID_Alumno', '==', upperInput)),
+        ];
 
-      for (const q of queries) {
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const rawData = snap.docs[0].data();
-          userData = normalizeFirestoreData(rawData) as User;
-          userData.ID_Alumno = userData.ID_Alumno || snap.docs[0].id;
-          break;
+        for (const q of queries) {
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const rawData = snap.docs[0].data();
+            userData = normalizeFirestoreData(rawData) as User;
+            userData.ID_Alumno = userData.ID_Alumno || snap.docs[0].id;
+            break;
+          }
         }
+      } catch (e: any) {
+        console.error("Error in Strategy 2 queries:", e);
+        throw new Error("Error consultando la base de datos: " + e.message);
       }
     }
 

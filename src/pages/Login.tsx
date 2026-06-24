@@ -17,8 +17,9 @@ export default function Login() {
       // Pass the raw input (trimmed) to the login function which now handles multiple search strategies
       await login(email.trim(), password);
       navigate('/');
-    } catch (err) {
-      setError('Credenciales inválidas');
+    } catch (err: any) {
+      console.error("Error en login:", err);
+      setError(err.message || 'Credenciales inválidas');
     }
   };
 

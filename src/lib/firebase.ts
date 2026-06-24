@@ -11,6 +11,10 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+if (!firebaseConfig.apiKey) {
+  console.error("FIREBASE CONFIG MISSING: Environment variables are not set. If you deployed to Hostinger, make sure you configure the environment variables during the build step.");
+}
+
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore with settings to improve connectivity in restricted environments
