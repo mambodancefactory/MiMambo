@@ -45,6 +45,23 @@ interface Course {
     FechaFinCurso?: string | Timestamp;
 }
 
+const getCursosInscritosArray = (cursosInscritos: any): any[] => {
+  if (!cursosInscritos) return [];
+  if (Array.isArray(cursosInscritos)) return cursosInscritos;
+  if (typeof cursosInscritos === 'object') {
+    const keys = Object.keys(cursosInscritos).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (isNaN(numA) || isNaN(numB)) {
+        return a.localeCompare(b);
+      }
+      return numA - numB;
+    });
+    return keys.map(k => cursosInscritos[k]).filter(item => item && typeof item === 'object');
+  }
+  return [];
+};
+
 export default function Fees() {
   const { user } = useAuth();
   const [fees, setFees] = useState<PagoCuota[]>([]);
@@ -114,8 +131,9 @@ export default function Fees() {
 
         // Get user assignments
         let courseIds: string[] = [];
-        if (user.cursosInscritos && Array.isArray(user.cursosInscritos)) {
-            courseIds = user.cursosInscritos.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
+        const cursosInscritosArray = getCursosInscritosArray(user.cursosInscritos);
+        if (cursosInscritosArray.length > 0) {
+            courseIds = cursosInscritosArray.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
         } else {
             const assignmentsQ = query(
                 collection(db, 'Cursos_Asignacion_Alumnos'),
@@ -236,7 +254,7 @@ export default function Fees() {
   }
 
   return (
-    <div className="space-y-6 pt-4 pb-24">
+    <div className="space-y-6 pt-0 pb-24" style={{ paddingTop: '0px' }}>
       <Header title="Mis Cuotas" />
       
       {/* Current Fee Card - Prominent & Detailed */}

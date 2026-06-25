@@ -323,7 +323,7 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-6 pt-4 pb-24 relative">
+    <div className="space-y-6 pt-0 pb-24 relative" style={{ paddingTop: '0px' }}>
       <Header 
         title="Mi Perfil" 
       />

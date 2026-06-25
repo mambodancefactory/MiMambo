@@ -2,52 +2,117 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/context/AuthContext';
 import { useAttendance } from '@/hooks/useAttendance';
-import { Calendar, Clock, MapPin, PartyPopper, AlertCircle, CheckCircle, X, Bell } from 'lucide-react';
+import { Calendar, Clock, MapPin, CheckCircle, X, ChevronRight, ChevronLeft, AlertCircle, PartyPopper, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInHours } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { BattlepassWidget } from '@/components/BattlepassWidget';
-import { addDoc, collection, Timestamp, doc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, Timestamp, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Header } from '@/components/Header';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { stats, nextClass, events, loading } = useAttendance();
-  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const { stats, upcomingClasses, events, loading } = useAttendance();
   const [markingAttendance, setMarkingAttendance] = useState(false);
   const [attendanceSuccess, setAttendanceSuccess] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
-  const hoursUntilClass = nextClass ? differenceInHours(nextClass.startTime, new Date()) : 999;
-  const canMarkAttendance = hoursUntilClass <= 3;
+  const handleScanRecovery = async (result: any) => {
+    if (!result || !result.length) return;
+    const rawValue = result[0].rawValue;
+    
+    let classId = rawValue;
+    try {
+        const parsed = JSON.parse(rawValue);
+        if (parsed.classId) classId = parsed.classId;
+    } catch(e) {}
+    
+    if (!classId) return;
 
-  const handleMarkAttendance = async () => {
-    if (!user || !nextClass) return;
+    setShowScanner(false);
+    
+    try {
+        const classRef = doc(db, 'Clases', classId);
+        const classSnap = await getDoc(classRef);
+        if (classSnap.exists()) {
+            const classData = classSnap.data();
+            let recos = classData.registro_recuperaciones_en_vivo || [];
+            if (!Array.isArray(recos)) {
+                recos = Object.entries(recos).map(([id, val]) => ({
+                    idAlumno: id,
+                    Asistencia: val,
+                    AppMarcacion: "Migrated",
+                    observacion_app: "Migrated legacy object"
+                }));
+            }
+            
+            recos = recos.filter((r: any) => r.idAlumno !== user.ID_Alumno);
+            recos.push({
+                idAlumno: user.ID_Alumno,
+                Asistencia: true,
+                AppMarcacion: "Mi Mambo",
+                observacion_app: "Recuperación desde Mi Mambo = true"
+            });
+            
+            await updateDoc(classRef, {
+                registro_recuperaciones_en_vivo: recos
+            });
+            
+            alert("Recuperación marcada correctamente");
+            window.location.reload();
+        } else {
+            alert("Clase no encontrada");
+        }
+    } catch (err) {
+        console.error("Error recovering:", err);
+        alert("Error al marcar recuperación");
+    }
+  };
 
+  const handleMarkAttendanceLive = async (classId: string, status: boolean) => {
+    if (!user) return;
     setMarkingAttendance(true);
     try {
-      // 1. Write legacy record for backup
-      await addDoc(collection(db, 'Asistencia_Clases_Regulares'), {
-        ID_Alumno: user.ID_Alumno,
-        ID_Clase: nextClass.id,
-        Timestamp_Entrada: Timestamp.now(),
-        Metodo_Entrada: 'App',
-        Estado: 'Presente'
-      });
+      // Update Class document with in-vivo attendance
+      const classRef = doc(db, 'Clases', classId);
+      const classSnap = await getDoc(classRef);
+      
+      if (classSnap.exists()) {
+          const classData = classSnap.data();
+          let currentRegistro = classData.registro_en_vivo || [];
+          if (!Array.isArray(currentRegistro)) {
+              currentRegistro = Object.entries(currentRegistro).map(([id, val]) => ({ 
+                  idAlumno: id, 
+                  Asistencia: val, 
+                  AppMarcacion: "Migrated",
+                  observacion_app: "Migrated legacy object"
+              }));
+          }
 
-      // 2. Update Class document with in-vivo attendance
-      const classRef = doc(db, 'Clases', nextClass.id);
-      await updateDoc(classRef, {
-        [`registro_en_vivo.${user.ID_Alumno}`]: true
-      });
+          // Remove old entry for this student if it exists
+          currentRegistro = currentRegistro.filter((r: any) => r.idAlumno !== user.ID_Alumno);
+          
+          // Add new entry
+          currentRegistro.push({
+              idAlumno: user.ID_Alumno,
+              Asistencia: status,
+              AppMarcacion: "Mi Mambo",
+              observacion_app: "Marcada desde Mi Mambo = true"
+          });
+
+          await updateDoc(classRef, {
+            registro_en_vivo: currentRegistro
+          });
+      }
 
       setAttendanceSuccess(true);
       setTimeout(() => {
-        setShowAttendanceModal(false);
         setAttendanceSuccess(false);
         // Ideally trigger a refresh of useAttendance here
-        window.location.reload(); // Simple refresh for now
-      }, 2000);
+        window.location.reload(); 
+      }, 1500);
     } catch (error) {
       console.error("Error marking attendance:", error);
     } finally {
@@ -56,84 +121,135 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 pt-8 pb-24">
-      <Header showGreeting={true} />
+    <div className="space-y-6 pt-0 pb-24" style={{ paddingTop: '0px' }}>
+      <Header 
+        showGreeting={true} 
+        rightElement={
+            <button 
+                onClick={() => setShowScanner(true)}
+                className="text-gray-600 hover:text-[#2e2f43] transition-all p-1"
+                title="Escanear QR para recuperar clase"
+            >
+                <QrCode size={24} />
+            </button>
+        }
+      />
 
       {/* Battlepass Widget */}
       <BattlepassWidget />
 
-      {/* Next Class Card */}
-      <div className="relative group">
-        <div className="absolute inset-0 bg-[#2e2f43] rounded-[2.5rem] blur-2xl opacity-5 group-hover:opacity-10 transition-opacity" />
-        <GlassCard className="relative overflow-hidden border-white/40 bg-white/40 backdrop-blur-2xl rounded-[2.5rem] p-8 shadow-xl">
-          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-[#2e2f43]/5 rounded-full blur-3xl" />
-          
-          <div className="flex justify-between items-start mb-6">
-            <div className="space-y-1">
-              <span className="px-3 py-1 bg-[#2e2f43]/5 text-[#2e2f43] text-[10px] font-black rounded-full uppercase tracking-[0.2em]">
-                Próxima Clase
-              </span>
-              {loading ? (
-                <div className="h-10 w-48 bg-[#2e2f43]/5 rounded-xl animate-pulse mt-3"></div>
-              ) : nextClass ? (
-                <div className="pt-2">
-                  <h2 className="text-3xl font-black text-[#2e2f43] tracking-tighter leading-none">
-                    {nextClass.courseName}
-                  </h2>
-                  <p className="text-[#2e2f43]/60 font-bold text-sm uppercase tracking-wider mt-1">
-                    {nextClass.level}
-                  </p>
-                </div>
-              ) : (
-                <h2 className="text-xl font-black mt-3 text-[#2e2f43]">Sin clases próximas</h2>
-              )}
-            </div>
-            <div className="bg-[#2e2f43] p-4 rounded-2xl shadow-lg shadow-[#2e2f43]/20">
-              <Calendar className="text-white" size={24} />
-            </div>
-          </div>
-          
-          {nextClass ? (
-            <div className="space-y-4 mt-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white/50 p-4 rounded-2xl border border-white/60 shadow-sm">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Clock size={14} className="text-[#2e2f43]/40" />
-                    <span className="text-[10px] font-black text-[#2e2f43]/40 uppercase tracking-widest">Horario</span>
-                  </div>
-                  <p className="font-black text-[#2e2f43] capitalize text-sm">
-                    {format(nextClass.startTime, "EEEE, HH:mm", { locale: es })}
-                  </p>
-                </div>
-                <div className="bg-white/50 p-4 rounded-2xl border border-white/60 shadow-sm">
-                  <div className="flex items-center gap-2 mb-1">
-                    <MapPin size={14} className="text-[#2e2f43]/40" />
-                    <span className="text-[10px] font-black text-[#2e2f43]/40 uppercase tracking-widest">Ubicación</span>
-                  </div>
-                  <p className="font-black text-[#2e2f43] text-sm">{nextClass.location}</p>
-                </div>
-              </div>
+      {/* Upcoming Classes Slider */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-bold px-2 text-[#2e2f43]/60 uppercase tracking-wider">Próximas Clases</h3>
+        
+        {loading ? (
+            <div className="px-4"><div className="h-48 w-full bg-[#2e2f43]/5 rounded-[2.5rem] animate-pulse"></div></div>
+        ) : upcomingClasses && upcomingClasses.length > 0 ? (
+            <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-4 px-4 pb-4 -mx-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {upcomingClasses.map((cls) => {
+                    const hoursUntilClass = differenceInHours(cls.startTime, new Date());
+                    const canMarkAttendance = true; // Permitting always if not closed: cls.asistenciaCerrada === false
+                    const isClosed = cls.asistenciaCerrada;
+                    
+                    return (
+                        <div key={cls.id} className="min-w-[90%] snap-center shrink-0 relative group">
+                            <div className="absolute inset-0 bg-[#2e2f43] rounded-[2.5rem] blur-2xl opacity-5 transition-opacity" />
+                            <GlassCard className="relative overflow-hidden border-white/40 bg-white/40 backdrop-blur-2xl rounded-[2.5rem] p-6 shadow-xl h-full flex flex-col justify-between">
+                                <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-[#2e2f43]/5 rounded-full blur-3xl" />
+                                
+                                <div>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="space-y-1">
+                                            <span className="px-3 py-1 bg-[#2e2f43]/5 text-[#2e2f43] text-[10px] font-black rounded-full uppercase tracking-[0.2em]">
+                                                {format(cls.startTime, 'EEEE', { locale: es })}
+                                            </span>
+                                            <div className="pt-2">
+                                                <h2 className="text-2xl font-black text-[#2e2f43] tracking-tighter leading-none line-clamp-2">
+                                                    {cls.courseName}
+                                                </h2>
+                                                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                                    <p className="text-[#2e2f43]/60 font-bold text-[10px] uppercase tracking-wider">
+                                                        {cls.level}
+                                                    </p>
+                                                    {cls.rol && (
+                                                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                                            cls.rol.toLowerCase() === 'leader' 
+                                                            ? 'bg-blue-50 text-blue-600 border border-blue-100/30' 
+                                                            : 'bg-pink-50 text-pink-600 border border-pink-100/30'
+                                                        }`}>
+                                                            {cls.rol === 'leader' ? 'Leader' : 'Follower'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-[#2e2f43] p-3 rounded-2xl shadow-lg shadow-[#2e2f43]/20 shrink-0">
+                                            <Calendar className="text-white" size={20} />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3 mt-4 mb-4">
+                                        <div className="bg-white/50 p-3 rounded-xl border border-white/60 shadow-sm">
+                                            <div className="flex items-center gap-1.5 mb-1">
+                                                <Clock size={12} className="text-[#2e2f43]/40" />
+                                                <span className="text-[9px] font-black text-[#2e2f43]/40 uppercase tracking-widest">Horario</span>
+                                            </div>
+                                            <p className="font-black text-[#2e2f43] capitalize text-xs">
+                                                {format(cls.startTime, "HH:mm", { locale: es })}
+                                            </p>
+                                        </div>
+                                        <div className="bg-white/50 p-3 rounded-xl border border-white/60 shadow-sm">
+                                            <div className="flex items-center gap-1.5 mb-1">
+                                                <MapPin size={12} className="text-[#2e2f43]/40" />
+                                                <span className="text-[9px] font-black text-[#2e2f43]/40 uppercase tracking-widest">Ubicación</span>
+                                            </div>
+                                            <p className="font-black text-[#2e2f43] text-xs truncate">{cls.location}</p>
+                                        </div>
+                                    </div>
+                                </div>
 
-              {!nextClass.attendanceMarked && (
-                <button
-                  onClick={() => setShowAttendanceModal(true)}
-                  disabled={!canMarkAttendance}
-                  className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all ${
-                    canMarkAttendance
-                      ? 'bg-[#2e2f43] text-white shadow-xl shadow-[#2e2f43]/20 hover:shadow-[#2e2f43]/30 active:scale-95'
-                      : 'bg-[#2e2f43]/5 text-[#2e2f43]/30 cursor-not-allowed border border-[#2e2f43]/10'
-                  }`}
-                >
-                  {canMarkAttendance ? 'Marcar asistencia' : `Disponible en ${hoursUntilClass}h`}
-                </button>
-              )}
+                                <div>
+                                    {isClosed ? (
+                                        <div className="w-full py-3 rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] bg-gray-100 text-gray-400 text-center border border-gray-200">
+                                            Asistencia Cerrada
+                                        </div>
+                                    ) : cls.attendanceMarked ? (
+                                        <div className="w-full py-3 rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] bg-green-50 text-green-600 text-center border border-green-100 flex items-center justify-center gap-2">
+                                            <CheckCircle size={14} /> Marcada
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 gap-2 mt-auto">
+                                            <button
+                                                onClick={() => handleMarkAttendanceLive(cls.id, false)}
+                                                disabled={markingAttendance}
+                                                className="w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all bg-red-50 text-red-600 hover:bg-red-100 active:scale-95 border border-red-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                            >
+                                                <X size={14} /> Faltaré
+                                            </button>
+                                            <button
+                                                onClick={() => handleMarkAttendanceLive(cls.id, true)}
+                                                disabled={markingAttendance}
+                                                className="w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all bg-[#2e2f43] text-white shadow-lg shadow-[#2e2f43]/20 hover:shadow-[#2e2f43]/30 active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                            >
+                                                <CheckCircle size={14} /> Asistiré
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </GlassCard>
+                        </div>
+                    );
+                })}
             </div>
-          ) : (
-            <p className="text-sm text-[#2e2f43]/40 font-bold mt-4">
-              No tienes clases programadas para los próximos 7 días.
-            </p>
-          )}
-        </GlassCard>
+        ) : (
+            <div className="px-4">
+                <GlassCard className="p-8 text-center bg-white/40 border-white/40">
+                    <p className="text-sm text-[#2e2f43]/40 font-bold">
+                        No tienes clases programadas esta semana.
+                    </p>
+                </GlassCard>
+            </div>
+        )}
       </div>
 
       {/* Next Event Banner */}
@@ -196,59 +312,46 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-      {/* Attendance Modal */}
+
       <AnimatePresence>
-        {showAttendanceModal && nextClass && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setShowAttendanceModal(false)}>
+        {showScanner && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white rounded-3xl p-6 shadow-2xl max-w-xs w-full border border-white/50 relative overflow-hidden"
-              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full border border-white/50 relative overflow-hidden flex flex-col items-center"
             >
-              {attendanceSuccess ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-4">
-                    <CheckCircle size={32} />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">¡Asistencia Marcada!</h3>
-                  <p className="text-sm text-gray-500">Que disfrutes de la clase</p>
+              <button 
+                onClick={() => setShowScanner(false)}
+                className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors z-10"
+              >
+                <X size={20} />
+              </button>
+              
+              <div className="text-center mb-6 mt-4">
+                <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <QrCode size={24} />
                 </div>
-              ) : (
-                <>
-                  <div className="text-center mb-6">
-                    <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <MapPin size={24} />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800">Confirmar Asistencia</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      ¿Estás en <strong>{nextClass.location}</strong> para la clase de <strong>{nextClass.courseName}</strong>?
-                    </p>
-                  </div>
+                <h3 className="text-xl font-bold text-gray-800">Escanear QR</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Escanea el código QR de la clase para marcar tu recuperación.
+                </p>
+              </div>
 
-                  <div className="space-y-3">
-                    <button
-                      onClick={handleMarkAttendance}
-                      disabled={markingAttendance}
-                      className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center"
-                    >
-                      {markingAttendance ? (
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        'Sí, estoy aquí'
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setShowAttendanceModal(false)}
-                      disabled={markingAttendance}
-                      className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </>
-              )}
+              <div className="w-full aspect-square bg-black rounded-2xl overflow-hidden shadow-inner relative">
+                 <Scanner 
+                    onScan={handleScanRecovery} 
+                    formats={['qr_code']}
+                    components={{
+                        audio: false,
+                        zoom: false
+                    }}
+                    styles={{
+                        container: { width: '100%', height: '100%' }
+                    }}
+                 />
+              </div>
             </motion.div>
           </div>
         )}

@@ -4,6 +4,23 @@ import { db } from '@/lib/firebase';
 import { startOfMonth, subMonths, format, startOfDay, isBefore, parseISO, startOfQuarter, endOfQuarter } from 'date-fns';
 import { safeToDate } from './useRecovery';
 
+const getCursosInscritosArray = (cursosInscritos: any): any[] => {
+  if (!cursosInscritos) return [];
+  if (Array.isArray(cursosInscritos)) return cursosInscritos;
+  if (typeof cursosInscritos === 'object') {
+    const keys = Object.keys(cursosInscritos).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (isNaN(numA) || isNaN(numB)) {
+        return a.localeCompare(b);
+      }
+      return numA - numB;
+    });
+    return keys.map(k => cursosInscritos[k]).filter(item => item && typeof item === 'object');
+  }
+  return [];
+};
+
 interface AttendanceResult {
   saldoActual: number;
   faltasMes: number;
@@ -97,7 +114,7 @@ export function useCalculoAsistenciaEnVivo(idAlumno: string | undefined): Attend
         }
         const alumnoData = alumnoSnap.data();
 
-        const cursosInscritos = alumnoData.cursosInscritos || [];
+        const cursosInscritos = getCursosInscritosArray(alumnoData.cursosInscritos);
         const assignments = cursosInscritos.map((c: any) => {
             let date = new Date(0); 
             const fechaAsignacion = c.fechaAsignacion || c.FechaAsignacion;
@@ -179,8 +196,8 @@ export function useCalculoAsistenciaEnVivo(idAlumno: string | undefined): Attend
                     ID_Curso: data.ID_Curso,
                     dateStr: dateStr,
                     Anulacion: data.Anulacion,
-                    registro_en_vivo: data.registro_en_vivo || {},
-                    registro_recuperaciones_en_vivo: data.registro_recuperaciones_en_vivo || {}
+                    registro_en_vivo: data.registro_en_vivo || [],
+                    registro_recuperaciones_en_vivo: data.registro_recuperaciones_en_vivo || []
                 };
             }).filter(c => {
                 if (c.Anulacion === true || c.Anulacion === 'true') return false;
@@ -228,17 +245,38 @@ export function useCalculoAsistenciaEnVivo(idAlumno: string | undefined): Attend
                 if (fechaKickoff && isBefore(classDate, startOfDay(fechaKickoff))) continue;
                 if (holidays.has(cls.dateStr)) continue;
 
-                const hasAttendanceRecord = Object.prototype.hasOwnProperty.call(cls.registro_en_vivo, idAlumno);
-                const hasRecoveryRecord = cls.registro_recuperaciones_en_vivo[idAlumno] === true;
+                const registroEnVivo = cls.registro_en_vivo || [];
+                const registroRecuperacionesEnVivo = cls.registro_recuperaciones_en_vivo || [];
 
+                let hasAttendanceRecord = false;
+                let hasRecoveryRecord = false;
                 let attended = false;
                 let missed = false;
+
+                if (Array.isArray(registroEnVivo)) {
+                    const record = registroEnVivo.find((r: any) => r.idAlumno === idAlumno);
+                    if (record) {
+                        hasAttendanceRecord = true;
+                        attended = record.Asistencia === true;
+                        missed = record.Asistencia === false;
+                    }
+                } else {
+                    hasAttendanceRecord = Object.prototype.hasOwnProperty.call(registroEnVivo, idAlumno);
+                    if (hasAttendanceRecord) {
+                        attended = registroEnVivo[idAlumno] === true;
+                        missed = registroEnVivo[idAlumno] === false;
+                    }
+                }
+
+                if (Array.isArray(registroRecuperacionesEnVivo)) {
+                    hasRecoveryRecord = registroRecuperacionesEnVivo.some((r: any) => r.idAlumno === idAlumno && r.Asistencia === true);
+                } else {
+                    hasRecoveryRecord = registroRecuperacionesEnVivo[idAlumno] === true;
+                }
+
                 let recovered = false;
 
-                if (hasAttendanceRecord) {
-                    attended = cls.registro_en_vivo[idAlumno] === true;
-                    missed = cls.registro_en_vivo[idAlumno] === false;
-                } else {
+                if (!hasAttendanceRecord) {
                     attended = attendanceSet.has(cls.id);
                     missed = !attended;
                 }

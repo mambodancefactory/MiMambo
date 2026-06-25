@@ -18,15 +18,35 @@ interface Course {
   HoraInicio: string;
   FechaInicioCurso: string | Timestamp;
   FechaFinCurso: string | Timestamp;
+  Estado?: string;
 }
 
 const WEEKDAYS = [
-  { label: 'Lunes', short: 'Lun', value: 2 },
-  { label: 'Martes', short: 'Mar', value: 3 },
-  { label: 'Miércoles', short: 'Mié', value: 4 },
-  { label: 'Jueves', short: 'Jue', value: 5 },
-  { label: 'Viernes', short: 'Vie', value: 6 },
+  { label: 'Lunes', short: 'Lun', value: 1 },
+  { label: 'Martes', short: 'Mar', value: 2 },
+  { label: 'Miércoles', short: 'Mié', value: 3 },
+  { label: 'Jueves', short: 'Jue', value: 4 },
+  { label: 'Viernes', short: 'Vie', value: 5 },
+  { label: 'Sábado', short: 'Sáb', value: 6 },
+  { label: 'Domingo', short: 'Dom', value: 7 },
 ];
+
+const getCursosInscritosArray = (cursosInscritos: any): any[] => {
+  if (!cursosInscritos) return [];
+  if (Array.isArray(cursosInscritos)) return cursosInscritos;
+  if (typeof cursosInscritos === 'object') {
+    const keys = Object.keys(cursosInscritos).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (isNaN(numA) || isNaN(numB)) {
+        return a.localeCompare(b);
+      }
+      return numA - numB;
+    });
+    return keys.map(k => cursosInscritos[k]).filter(item => item && typeof item === 'object');
+  }
+  return [];
+};
 
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -45,13 +65,9 @@ export default function Courses() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // Set default selected day to current day of week if it's Mon-Fri
-    const todayDay = new Date().getDay() + 1; // 1-7
-    if (todayDay >= 2 && todayDay <= 6) {
-        setSelectedDayValue(todayDay);
-    } else {
-        setSelectedDayValue(2); // Monday
-    }
+    // Set default selected day to current day of week
+    const todayDay = new Date().getDay(); // 0 is Sunday, 1 is Monday...
+    setSelectedDayValue(todayDay === 0 ? 7 : todayDay);
 
     const fetchCourses = async () => {
       try {
@@ -64,34 +80,9 @@ export default function Courses() {
           ...doc.data()
         })) as Course[];
 
-        // Filter active or future courses
+        // Filter active courses
         const activeCourses = coursesData.filter(course => {
-          if (!course.FechaFinCurso) return true;
-          
-          let end = new Date();
-          
-          if (course.FechaFinCurso instanceof Timestamp) {
-            end = course.FechaFinCurso.toDate();
-          } else {
-             let dateStr = String(course.FechaFinCurso);
-             if (dateStr.includes('/')) dateStr = dateStr.replace(/\//g, '-');
-             
-             if (!dateStr.startsWith('20')) {
-                const parts = dateStr.split('-');
-                if (parts.length === 3 && parts[2].length === 4) {
-                   dateStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                }
-             }
-             
-             const parsed = parseISO(dateStr);
-             if (!isNaN(parsed.getTime())) {
-                end = parsed;
-             } else {
-                return true; 
-             }
-          }
-          
-          return !isBefore(startOfDay(end), todayDate); 
+          return course.Estado === 'Activo';
         });
 
         setCourses(activeCourses);
@@ -100,8 +91,9 @@ export default function Courses() {
         if (user) {
             // Enrolled Courses
             let enrolledIds = new Set<string>();
-            if (user.cursosInscritos && Array.isArray(user.cursosInscritos)) {
-                enrolledIds = new Set(user.cursosInscritos.map((c: any) => c.id || c.ID_Curso).filter(Boolean));
+            const cursosInscritosArray = getCursosInscritosArray(user.cursosInscritos);
+            if (cursosInscritosArray.length > 0) {
+                enrolledIds = new Set(cursosInscritosArray.map((c: any) => c.id || c.ID_Curso).filter(Boolean));
             } else {
                 const assignmentsQ = query(
                     collection(db, 'Cursos_Asignacion_Alumnos'),
@@ -215,7 +207,7 @@ export default function Courses() {
   if (loading) return <div className="p-8 text-center text-gray-500">Cargando cursos...</div>;
 
   return (
-    <div className="space-y-6 pt-8 pb-24 relative">
+    <div className="space-y-6 pt-0 pb-24 relative" style={{ paddingTop: '0px' }}>
       <h1 className="text-2xl font-bold px-2 text-[#2e2f43]">Cursos Disponibles</h1>
 
       {/* Day Selector - Generic Mon-Fri */}

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, orderBy, limit, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { startOfDay, isSameDay, parseISO, getDay, addDays, setHours, setMinutes, isAfter, format } from 'date-fns';
+import { startOfDay, isSameDay, parseISO, getDay, addDays, setHours, setMinutes, isAfter, format, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { safeToDate } from './useRecovery';
 
@@ -24,7 +24,7 @@ interface HistoryEntry {
     location?: string;
 }
 
-interface NextClass {
+export interface NextClass {
   id: string;
   courseName: string;
   level: string;
@@ -32,6 +32,8 @@ interface NextClass {
   endTime: Date;
   location: string;
   attendanceMarked: boolean;
+  rol?: string | null;
+  asistenciaCerrada?: boolean;
 }
 
 interface Event {
@@ -52,6 +54,23 @@ interface ClassData {
   [key: string]: any;
 }
 
+const getCursosInscritosArray = (cursosInscritos: any): any[] => {
+  if (!cursosInscritos) return [];
+  if (Array.isArray(cursosInscritos)) return cursosInscritos;
+  if (typeof cursosInscritos === 'object') {
+    const keys = Object.keys(cursosInscritos).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (isNaN(numA) || isNaN(numB)) {
+        return a.localeCompare(b);
+      }
+      return numA - numB;
+    });
+    return keys.map(k => cursosInscritos[k]).filter(item => item && typeof item === 'object');
+  }
+  return [];
+};
+
 export function useAttendance() {
   const { user } = useAuth();
   const [stats, setStats] = useState<AttendanceStats>({
@@ -62,6 +81,7 @@ export function useAttendance() {
     history: []
   });
   const [nextClass, setNextClass] = useState<NextClass | null>(null);
+  const [upcomingClasses, setUpcomingClasses] = useState<NextClass[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -73,8 +93,9 @@ export function useAttendance() {
         // 1. Fetch Assignments (with fallback to legacy collection)
         let assignments: any[] = [];
         let courseIds: string[] = [];
-        if (user.cursosInscritos && Array.isArray(user.cursosInscritos)) {
-            assignments = user.cursosInscritos.map((c: any) => {
+        const cursosInscritosArray = getCursosInscritosArray(user.cursosInscritos);
+        if (cursosInscritosArray.length > 0) {
+            assignments = cursosInscritosArray.map((c: any) => {
                 let date = new Date(0);
                 const fa = c.fechaAsignacion || c.FechaAsignacion;
                 if (fa) {
@@ -109,10 +130,10 @@ export function useAttendance() {
         // 2. Fetch Courses details
         let courses: Record<string, any> = {};
         if (courseIds.length > 0) {
-          const coursesQ = query(collection(db, 'Cursos'), where('ID_Curso', 'in', courseIds));
+          const coursesQ = query(collection(db, 'Cursos'), where(documentId(), 'in', courseIds));
           const coursesSnap = await getDocs(coursesQ);
           courses = coursesSnap.docs.reduce((acc, doc) => {
-            acc[doc.data().ID_Curso] = doc.data();
+            acc[doc.id] = doc.data();
             return acc;
           }, {} as Record<string, any>);
         }
@@ -264,11 +285,34 @@ export function useAttendance() {
                     return;
                 }
 
-                const registro_en_vivo = cls.registro_en_vivo || {};
-                const registro_recuperaciones_en_vivo = cls.registro_recuperaciones_en_vivo || {};
+                const registro_en_vivo = cls.registro_en_vivo || [];
+                const registro_recuperaciones_en_vivo = cls.registro_recuperaciones_en_vivo || [];
 
-                const hasAttendanceRecord = Object.prototype.hasOwnProperty.call(registro_en_vivo, idAlumno);
-                const hasRecoveryRecord = registro_recuperaciones_en_vivo[idAlumno] === true;
+                let hasAttendanceRecord = false;
+                let hasRecoveryRecord = false;
+                let attended = false;
+                let missed = false;
+
+                if (Array.isArray(registro_en_vivo)) {
+                    const record = registro_en_vivo.find((r: any) => r.idAlumno === idAlumno);
+                    if (record) {
+                        hasAttendanceRecord = true;
+                        attended = record.Asistencia === true;
+                        missed = record.Asistencia === false;
+                    }
+                } else {
+                    hasAttendanceRecord = Object.prototype.hasOwnProperty.call(registro_en_vivo, idAlumno);
+                    if (hasAttendanceRecord) {
+                        attended = registro_en_vivo[idAlumno] === true;
+                        missed = registro_en_vivo[idAlumno] === false;
+                    }
+                }
+
+                if (Array.isArray(registro_recuperaciones_en_vivo)) {
+                    hasRecoveryRecord = registro_recuperaciones_en_vivo.some((r: any) => r.idAlumno === idAlumno && r.Asistencia === true);
+                } else {
+                    hasRecoveryRecord = registro_recuperaciones_en_vivo[idAlumno] === true;
+                }
 
                 // If no in-vivo record, check if student was assigned to this course on class date
                 const assignment = assignments.find(a => a.ID_Curso === cls.ID_Curso);
@@ -281,14 +325,9 @@ export function useAttendance() {
 
                 totalClasses++;
 
-                let attended = false;
-                let missed = false;
                 let recovered = false;
 
-                if (hasAttendanceRecord) {
-                    attended = registro_en_vivo[idAlumno] === true;
-                    missed = registro_en_vivo[idAlumno] === false;
-                } else {
+                if (!hasAttendanceRecord) {
                     // Fallback to legacy
                     attended = attendanceSnap.docs.some(d => {
                         const data = d.data();
@@ -338,7 +377,10 @@ export function useAttendance() {
                 historyMap.set(cls._normalizedDate, [...existing, entry]);
             });
 
-            // 2. Next Class Calculation
+            // 2. Next Class and Upcoming Classes Calculation
+            const startOfCurrentWeek = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            const endOfCurrentWeek = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
             const futureClasses = allClasses
                 .filter(c => {
                     if (c.Anulacion === true || c.Anulacion === 'true') return false;
@@ -351,8 +393,18 @@ export function useAttendance() {
                     return a._normalizedTime.localeCompare(b._normalizedTime);
                 });
 
-            if (futureClasses.length > 0) {
-                const next = futureClasses[0];
+            const weekClasses = allClasses
+                .filter(c => {
+                    if (c.Anulacion === true || c.Anulacion === 'true') return false;
+                    if (c._normalizedDate < startOfCurrentWeek || c._normalizedDate > endOfCurrentWeek) return false;
+                    return true;
+                })
+                .sort((a, b) => {
+                    if (a._normalizedDate !== b._normalizedDate) return a._normalizedDate.localeCompare(b._normalizedDate);
+                    return a._normalizedTime.localeCompare(b._normalizedTime);
+                });
+
+            const processClass = (next: any): NextClass | null => {
                 const course = courses[next.ID_Curso];
                 
                 if (course && next._normalizedDate && next._normalizedTime) {
@@ -370,17 +422,31 @@ export function useAttendance() {
                     const attendanceMarked = next.registro_en_vivo?.[user.ID_Alumno] === true || 
                                              attendanceSnap.docs.some(d => d.data().ID_Clase === next.id);
 
-                    nextClassData = {
+                    const cursosInscritosArr = getCursosInscritosArray(user.cursosInscritos);
+                    const inscrito = cursosInscritosArr.find((c: any) => (c.id || c.ID_Curso) === next.ID_Curso);
+                    const rol = inscrito?.rol || inscrito?.Rol || null;
+
+                    return {
                         id: next.id,
                         courseName: [course.Disciplina, course.Estilo].filter(Boolean).join(' '),
                         level: [course.Modalidad, [course.Nivel, course.Subnivel].filter(Boolean).join(' - ')].filter(Boolean).join(' • '),
                         startTime: new Date(year, month - 1, day, startH, startM),
                         endTime: new Date(year, month - 1, day, endH, endM),
                         location: course.Ubicacion || 'Sala Principal',
-                        attendanceMarked: attendanceMarked
+                        attendanceMarked: attendanceMarked,
+                        rol: rol,
+                        asistenciaCerrada: next.AsistenciaCerrada === true || next.AsistenciaCerrada === 'true'
                     };
                 }
+                return null;
+            };
+
+            if (futureClasses.length > 0) {
+                nextClassData = processClass(futureClasses[0]);
             }
+
+            const upcomingClassesData = weekClasses.map(processClass).filter(Boolean) as NextClass[];
+            setUpcomingClasses(upcomingClassesData);
         }
 
         // Apply "Leaky Bucket" / Recovery Logic
@@ -418,5 +484,5 @@ export function useAttendance() {
     fetchData();
   }, [user]);
 
-  return { stats, nextClass, events, loading };
+  return { stats, nextClass, upcomingClasses, events, loading };
 }

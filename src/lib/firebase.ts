@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentSingleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -20,7 +20,7 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firestore with settings to improve connectivity in restricted environments
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
+    tabManager: persistentSingleTabManager({})
   }),
   experimentalForceLongPolling: true,
 });

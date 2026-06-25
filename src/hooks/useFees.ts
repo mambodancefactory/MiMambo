@@ -1,9 +1,26 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { isWithinInterval } from 'date-fns';
 import { safeToDate } from './useRecovery';
+
+const getCursosInscritosArray = (cursosInscritos: any): any[] => {
+  if (!cursosInscritos) return [];
+  if (Array.isArray(cursosInscritos)) return cursosInscritos;
+  if (typeof cursosInscritos === 'object') {
+    const keys = Object.keys(cursosInscritos).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (isNaN(numA) || isNaN(numB)) {
+        return a.localeCompare(b);
+      }
+      return numA - numB;
+    });
+    return keys.map(k => cursosInscritos[k]).filter(item => item && typeof item === 'object');
+  }
+  return [];
+};
 
 export function useFees() {
   const { user } = useAuth();
@@ -17,8 +34,9 @@ export function useFees() {
       try {
         // 1. Fetch Assignments
         let courseIds: string[] = [];
-        if (user.cursosInscritos && Array.isArray(user.cursosInscritos)) {
-          courseIds = user.cursosInscritos.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
+        const cursosInscritosArray = getCursosInscritosArray(user.cursosInscritos);
+        if (cursosInscritosArray.length > 0) {
+          courseIds = cursosInscritosArray.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
         } else {
           const assignmentsQ = query(
             collection(db, 'Cursos_Asignacion_Alumnos'),
@@ -32,7 +50,7 @@ export function useFees() {
 
         if (courseIds.length > 0) {
           // 2. Fetch Courses to check dates
-          const coursesQ = query(collection(db, 'Cursos'), where('ID_Curso', 'in', courseIds));
+          const coursesQ = query(collection(db, 'Cursos'), where(documentId(), 'in', courseIds));
           const coursesSnap = await getDocs(coursesQ);
           
           const today = new Date();

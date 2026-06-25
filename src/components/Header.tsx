@@ -213,7 +213,7 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
   return (
     <>
       <header 
-        className="sticky top-0 z-[100] bg-white pb-3 px-6 -mx-4 mb-6 flex justify-between items-center border-b border-gray-100 shadow-sm"
+        className="sticky top-0 z-[100] bg-white/70 backdrop-blur-md pb-3 px-6 -mx-4 mb-6 flex justify-between items-center"
         style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top))' }}
       >
         <div>

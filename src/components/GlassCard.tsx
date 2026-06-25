@@ -7,13 +7,15 @@ interface CardProps {
   className?: string;
   title?: string;
   key?: any;
+  style?: React.CSSProperties;
 }
 
-export function GlassCard({ children, className, title }: CardProps) {
+export function GlassCard({ children, className, title, style }: CardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
+      style={style}
       className={cn(
         "bg-white/40 backdrop-blur-md border border-white/50 shadow-lg rounded-2xl p-5 relative overflow-hidden",
         className

@@ -5,7 +5,7 @@ import { useAttendance } from '@/hooks/useAttendance';
 import { useCalculoAsistenciaEnVivo } from '@/hooks/useCalculoAsistenciaEnVivo';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay, startOfDay, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { BookOpen, Clock, Info, X, MessageCircle, User, MapPin, Plus, Trash2 } from 'lucide-react';
@@ -31,6 +31,7 @@ interface Course {
   FechaFinCurso: string | Timestamp;
   Ubicacion?: string;
   EnlaceWhatsApp?: string;
+  rol?: string | null;
 }
 
 interface PrivateClassPack {
@@ -40,6 +41,23 @@ interface PrivateClassPack {
   FechaCaducidad: Date;
   FechaCompra: Date;
 }
+
+const getCursosInscritosArray = (cursosInscritos: any): any[] => {
+  if (!cursosInscritos) return [];
+  if (Array.isArray(cursosInscritos)) return cursosInscritos;
+  if (typeof cursosInscritos === 'object') {
+    const keys = Object.keys(cursosInscritos).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (isNaN(numA) || isNaN(numB)) {
+        return a.localeCompare(b);
+      }
+      return numA - numB;
+    });
+    return keys.map(k => cursosInscritos[k]).filter(item => item && typeof item === 'object');
+  }
+  return [];
+};
 
 export default function Classes() {
   const { user } = useAuth();
@@ -66,34 +84,33 @@ export default function Classes() {
 
     const fetchData = async () => {
       try {
-        // 1. Fetch Courses
+        // 1. Fetch Active Courses
         let courseIds: string[] = [];
-        if (user.cursosInscritos && Array.isArray(user.cursosInscritos)) {
-          courseIds = user.cursosInscritos.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
-        } else {
-          const assignmentsQ = query(
-            collection(db, 'Cursos_Asignacion_Alumnos'),
-            where('ID_Alumno', '==', user.ID_Alumno)
-          );
-          const assignmentsSnap = await getDocs(assignmentsQ);
-          courseIds = assignmentsSnap.docs.map(doc => doc.data().ID_Curso);
+        const cursosInscritosArray = getCursosInscritosArray(user.cursosInscritos);
+        if (cursosInscritosArray.length > 0) {
+          courseIds = cursosInscritosArray.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
         }
 
         if (courseIds.length > 0) {
-          const coursesQ = query(collection(db, 'Cursos'), where('ID_Curso', 'in', courseIds));
+          const coursesQ = query(collection(db, 'Cursos'), where(documentId(), 'in', courseIds));
           const coursesSnap = await getDocs(coursesQ);
           
           const today = startOfDay(new Date());
 
           const activeCourses = coursesSnap.docs
-            .map(doc => ({ ID_Curso: doc.id, ...doc.data() } as Course))
+            .map(doc => {
+              const inscrito = cursosInscritosArray.find((c: any) => (c.id || c.ID_Curso) === doc.id);
+              return { 
+                ID_Curso: doc.id, 
+                ...doc.data(),
+                rol: inscrito?.rol || inscrito?.Rol || null
+              } as Course & { rol?: string | null };
+            })
             .filter(course => {
-              if (!course.FechaInicioCurso || !course.FechaFinCurso) return false;
+              // Si no tiene fecha de fin, se considera activo siempre
+              if (!course.FechaFinCurso) return true;
 
-              const start = safeToDate(course.FechaInicioCurso);
               const end = safeToDate(course.FechaFinCurso);
-
-              // Allow courses that haven't ended yet
               return today <= end;
             });
 
@@ -241,11 +258,11 @@ export default function Classes() {
   const activePack = hasActivePack ? privateClasses[0] : null;
 
   return (
-    <div className="space-y-4 pt-4 pb-24 relative">
+    <div className="space-y-4 pt-0 pb-24 relative" style={{ paddingTop: '0px' }}>
       <Header title="Mis Clases" />
 
       {/* 1. Calendar Section (Compact Card) */}
-      <GlassCard className="p-4">
+      <GlassCard className="p-4" style={{ borderRadius: '16px' }}>
         <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-bold text-[#2e2f43] capitalize">
                 {format(currentMonth, 'MMMM yyyy', { locale: es })}
@@ -323,7 +340,7 @@ export default function Classes() {
             <span className="text-2xl font-bold text-[#2e2f43]">{asistenciasTrimestre}</span>
             <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1">Asistencias</span>
         </div>
-        <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+        <div style={{ borderRadius: '16px' }} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
             <span className="text-2xl font-bold text-red-500">{faltasTrimestre}</span>
             <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1">Faltas</span>
         </div>
@@ -362,7 +379,7 @@ export default function Classes() {
 
       <div className="space-y-6">
           <div className="bg-white/40 backdrop-blur-xl rounded-[2.5rem] border border-white/50 shadow-xl overflow-hidden">
-                {/* Active Courses List (Standard List) */}
+                {/* Active Courses List */}
                 <div className="p-4 space-y-4">
                     <div className="flex justify-between items-center px-2">
                         <h3 className="text-xs font-bold text-[#2e2f43]/60 uppercase tracking-wider">Mis Cursos</h3>
@@ -398,6 +415,15 @@ export default function Classes() {
                                                         <span className="text-[9px] font-bold px-2 py-0.5 bg-[#ffba15]/10 text-[#ffba15] rounded-full uppercase">
                                                             {course.Nivel}
                                                         </span>
+                                                        {course.rol && (
+                                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                                                course.rol.toLowerCase() === 'leader' 
+                                                                    ? 'bg-blue-50 text-blue-600 border border-blue-100/30' 
+                                                                    : 'bg-pink-50 text-pink-600 border border-pink-100/30'
+                                                            }`}>
+                                                                {course.rol === 'leader' ? 'Leader' : 'Follower'}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <h4 className="text-lg font-bold text-[#2e2f43]">
                                                         {[course.Disciplina, course.Estilo].filter(Boolean).join(' ')}
@@ -424,7 +450,7 @@ export default function Classes() {
                                                                 <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ubicación</p>
                                                                 <div className="flex items-center gap-1.5 text-sm font-bold text-[#2e2f43]">
                                                                     <MapPin size={14} className="text-purple-500" />
-                                                                    {course.Ubicacion || 'Sala Principal'}
+                                                                    {course.Ubicacion || 'Mambo Dance Factory'}
                                                                 </div>
                                                             </div>
                                                             <div className="space-y-1 text-right">
@@ -443,13 +469,6 @@ export default function Classes() {
                                                                     <p className="text-sm font-bold text-gray-300 italic">No disponible</p>
                                                                 )}
                                                             </div>
-                                                        </div>
-
-                                                        <div className="pt-4">
-                                                            <button className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-red-100 transition-colors">
-                                                                <Trash2 size={14} />
-                                                                Solicitar baja del curso
-                                                            </button>
                                                         </div>
                                                     </motion.div>
                                                 )}

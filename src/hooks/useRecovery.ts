@@ -24,6 +24,23 @@ export const safeToDate = (val: any): Date => {
   return new Date();
 };
 
+const getCursosInscritosArray = (cursosInscritos: any): any[] => {
+  if (!cursosInscritos) return [];
+  if (Array.isArray(cursosInscritos)) return cursosInscritos;
+  if (typeof cursosInscritos === 'object') {
+    const keys = Object.keys(cursosInscritos).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (isNaN(numA) || isNaN(numB)) {
+        return a.localeCompare(b);
+      }
+      return numA - numB;
+    });
+    return keys.map(k => cursosInscritos[k]).filter(item => item && typeof item === 'object');
+  }
+  return [];
+};
+
 export const useRecovery = () => {
   const verificarCompatibilidadRecuperacion = (ticket: any, claseDestino: any, alumnoDoc: any): boolean => {
     const hoy = new Date();
@@ -32,7 +49,8 @@ export const useRecovery = () => {
     if (alumnoDoc.Estado !== 'Activo' && alumnoDoc.Estado !== 'Inactivo') return false;
 
     // Regla 2: No estar ya matriculado de forma oficial en el curso de destino
-    const cursosOficialesIds = alumnoDoc.cursosInscritos?.map((c: any) => c.id) || [];
+    const cursosInscritosArray = getCursosInscritosArray(alumnoDoc.cursosInscritos);
+    const cursosOficialesIds = cursosInscritosArray.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
     if (cursosOficialesIds.includes(claseDestino.ID_Curso)) return false;
 
     // Regla 3: El ticket seleccionado no debe estar usado ni caducado en tiempo real

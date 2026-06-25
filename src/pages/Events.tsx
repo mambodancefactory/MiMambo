@@ -67,7 +67,7 @@ export default function Events() {
   if (loading) return <div className="p-8 text-center text-gray-500">Cargando eventos...</div>;
 
   return (
-    <div className="space-y-6 pt-4 pb-24">
+    <div className="space-y-6 pt-0 pb-24" style={{ paddingTop: '0px' }}>
       <Header title="Próximos Eventos" />
 
       <div className="space-y-6">
