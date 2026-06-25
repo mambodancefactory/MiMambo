@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/context/AuthContext';
 import { useAttendance } from '@/hooks/useAttendance';
-import { Calendar, Clock, MapPin, CheckCircle, X, ChevronRight, ChevronLeft, AlertCircle, PartyPopper, QrCode, Loader2 } from 'lucide-react';
+import { Calendar, Clock, MapPin, CheckCircle, X, ChevronRight, ChevronLeft, AlertCircle, PartyPopper, QrCode, Loader2, Camera, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInHours } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -11,10 +11,17 @@ import { addDoc, collection, Timestamp, doc, updateDoc, getDoc } from 'firebase/
 import { db } from '@/lib/firebase';
 import { Header } from '@/components/Header';
 import { Scanner } from '@yudiel/react-qr-scanner';
+import { useCalculoAsistenciaEnVivo } from '@/hooks/useCalculoAsistenciaEnVivo';
+import { cn } from '@/lib/utils';
+import { safeToDate } from '@/hooks/useRecovery';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { stats, upcomingClasses, events, loading } = useAttendance();
+  const { saldoActual } = useCalculoAsistenciaEnVivo(user?.ID_Alumno);
+  const activeTickets = (user?.bolsaRecuperaciones || []).filter((t: any) => 
+    t.usado === false && safeToDate(t.caducidad) >= new Date()
+  );
   const [markingAttendance, setMarkingAttendance] = useState(false);
   const [attendanceSuccess, setAttendanceSuccess] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -23,6 +30,9 @@ export default function Dashboard() {
     message: string;
     courseName?: string;
   } | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
+  const [showEmptySlotInfo, setShowEmptySlotInfo] = useState<boolean>(false);
+  const [showRequirements, setShowRequirements] = useState<boolean>(false);
 
   const handleScanRecovery = async (result: any) => {
     if (!result || !result.length) return;
@@ -233,21 +243,9 @@ export default function Dashboard() {
     <div className="space-y-6 pt-0 pb-24" style={{ paddingTop: '0px' }}>
       <Header 
         showGreeting={true} 
-        rightElement={
-            <button 
-                onClick={() => setShowScanner(true)}
-                className="text-gray-600 hover:text-[#2e2f43] transition-all p-1"
-                title="Escanear QR para recuperar clase"
-            >
-                <QrCode size={24} />
-            </button>
-        }
       />
 
-      {/* Battlepass Widget */}
-      <BattlepassWidget />
-
-      {/* Upcoming Classes Slider */}
+      {/* 1 - Upcoming Classes Slider */}
       <div className="space-y-3">
         <h3 className="text-xs font-bold px-2 text-[#2e2f43]/60 uppercase tracking-wider">Próximas Clases</h3>
         
@@ -360,6 +358,67 @@ export default function Dashboard() {
             </div>
         )}
       </div>
+
+      {/* 2 - Recuperaciones Acumuladas */}
+      <div className="w-full">
+        <GlassCard className="p-5 bg-white/40 border-white/40 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+          <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffba15]" />
+                  <h3 className="text-xs font-black text-[#2e2f43] uppercase tracking-widest">Recuperaciones Acumuladas</h3>
+              </div>
+              <button 
+                onClick={() => setShowScanner(true)}
+                className="p-3 bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-[#ffba15] rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center shrink-0"
+                title="Escanear QR para recuperar"
+              >
+                <Camera size={18} />
+              </button>
+          </div>
+          <div className="flex gap-1.5 my-4">
+              {Array.from({ length: 8 }).map((_, i) => {
+                  const ticket = activeTickets[i];
+                  const isFilled = !!ticket;
+                  return (
+                      <button 
+                          key={i} 
+                          onClick={() => {
+                              if (isFilled) {
+                                  setSelectedTicket(ticket);
+                              } else {
+                                  setShowEmptySlotInfo(true);
+                              }
+                          }}
+                          className={cn(
+                              "h-3 flex-1 rounded-full transition-all duration-300 outline-none",
+                              isFilled 
+                                  ? "bg-[#ffba15] shadow-[0_0_10px_rgba(255,186,21,0.3)] hover:scale-110" 
+                                  : "bg-[#2e2f43]/5 hover:bg-[#2e2f43]/10"
+                          )}
+                          title={isFilled ? `Ver ticket de ${ticket.disciplina || ticket.Disciplina}` : "Ranura vacía"}
+                      />
+                  );
+              })}
+          </div>
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#2e2f43]/5">
+            <span className="text-[10px] text-[#2e2f43]/60 font-extrabold uppercase tracking-widest">
+              {activeTickets.length} de 8 slots ocupados
+            </span>
+            <button
+              onClick={() => setShowRequirements(true)}
+              className="flex items-center gap-1.5 py-1.5 px-3 bg-[#2e2f43]/5 hover:bg-[#2e2f43]/10 text-[#2e2f43] rounded-full text-[10px] font-black uppercase tracking-wider transition-all"
+            >
+              <Info size={12} />
+              Requisitos
+            </button>
+          </div>
+        </GlassCard>
+      </div>
+
+      {/* 3 - Battlepass Rank Card */}
+      <BattlepassWidget />
+
+      {/* 4 - Apartado Novedades */}
 
       {/* Next Event Banner */}
       {events.length > 0 && (
@@ -571,6 +630,253 @@ export default function Dashboard() {
               )}
             </motion.div>
           </motion.div>
+        )}
+
+        {/* Selected Ticket Info Modal */}
+        {selectedTicket && (
+          <motion.div
+            key="ticket-details-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2.5rem] p-6 max-w-sm w-full shadow-2xl border border-gray-100 flex flex-col relative overflow-hidden"
+            >
+              {/* Decorative top strip */}
+              <div className="absolute top-0 inset-x-0 h-3 bg-[#ffba15]" />
+              
+              <button 
+                onClick={() => setSelectedTicket(null)}
+                className="absolute top-4 right-4 p-1.5 bg-gray-50 hover:bg-gray-100 rounded-full text-[#2e2f43]/40 hover:text-[#2e2f43] transition-colors"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="flex items-center gap-3 mt-2 mb-4">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-[#ffba15]">
+                  <CheckCircle size={22} />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest">Bolsa de Recuperaciones</span>
+                  <h4 className="text-lg font-black text-[#2e2f43] leading-none">Ticket de Recuperación</h4>
+                </div>
+              </div>
+
+              <div className="space-y-3 my-2">
+                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Disciplina</span>
+                  <span className="text-xs font-black text-[#2e2f43]">{selectedTicket.disciplina || selectedTicket.Disciplina || 'Cualquiera'}</span>
+                </div>
+                {(selectedTicket.estilo || selectedTicket.Estilo) && (
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Estilo</span>
+                    <span className="text-xs font-black text-[#2e2f43]">{selectedTicket.estilo || selectedTicket.Estilo}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Modalidad</span>
+                  <span className="text-xs font-black text-[#2e2f43]">{selectedTicket.modalidad || selectedTicket.Modalidad || 'Cualquiera'}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Nivel</span>
+                  <span className="text-xs font-black text-[#2e2f43]">{selectedTicket.nivel || selectedTicket.Nivel || 'Cualquiera'}</span>
+                </div>
+                {selectedTicket.fechaFalta && (
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Fecha de Falta</span>
+                    <span className="text-xs font-black text-[#2e2f43] capitalize">
+                      {format(safeToDate(selectedTicket.fechaFalta), "d 'de' MMMM, yyyy", { locale: es })}
+                    </span>
+                  </div>
+                )}
+                {selectedTicket.caducidad && (
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Caducidad</span>
+                    <span className="text-xs font-black text-rose-500 capitalize">
+                      {format(safeToDate(selectedTicket.caducidad), "d 'de' MMMM, yyyy", { locale: es })}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => setSelectedTicket(null)}
+                className="w-full mt-4 py-3 bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-white rounded-2xl font-bold text-sm tracking-wide transition-colors shadow-lg"
+              >
+                Cerrar
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Empty Slot Info Modal */}
+        {showEmptySlotInfo && (
+          <motion.div
+            key="empty-slot-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2.5rem] p-6 max-w-sm w-full shadow-2xl border border-gray-100 flex flex-col relative overflow-hidden"
+            >
+              <button 
+                onClick={() => setShowEmptySlotInfo(false)}
+                className="absolute top-4 right-4 p-1.5 bg-gray-50 hover:bg-gray-100 rounded-full text-[#2e2f43]/40 hover:text-[#2e2f43] transition-colors"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="flex flex-col items-center text-center mt-4 mb-4">
+                <div className="w-16 h-16 rounded-full bg-gray-50 border border-dashed border-gray-200 flex items-center justify-center text-gray-400 mb-4">
+                  <div className="w-8 h-3 rounded-full bg-gray-200" />
+                </div>
+                <h4 className="text-xl font-black text-[#2e2f43] leading-none mb-2">Ranura de Bolsa Vacía</h4>
+                <p className="text-sm text-gray-500 leading-relaxed font-medium">
+                  Esta ranura está lista para almacenar una recuperación acumulada.
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-2xl p-4 text-xs text-gray-500 leading-relaxed font-bold border border-gray-100 mb-4 text-center">
+                Se completará automáticamente si faltas a una clase oficial y notificas tu ausencia con antelación (mínimo 12 horas antes).
+              </div>
+
+              <button
+                onClick={() => setShowEmptySlotInfo(false)}
+                className="w-full py-3 bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-white rounded-2xl font-bold text-sm tracking-wide transition-colors"
+              >
+                Entendido
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Requirements Sheet */}
+        {showRequirements && (
+          <div className="fixed inset-0 z-[150] flex flex-col">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowRequirements(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            {/* Sheet */}
+            <motion.div 
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="absolute inset-x-0 bottom-0 top-16 bg-white rounded-t-[3rem] shadow-2xl flex flex-col overflow-hidden"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 sticky top-0 z-10">
+                <div>
+                  <span className="text-xs font-black text-amber-500 uppercase tracking-widest">Normas del Centro</span>
+                  <h3 className="text-2xl font-black text-[#2e2f43] tracking-tight">Normativa de Recuperación</h3>
+                </div>
+                <button 
+                  onClick={() => setShowRequirements(false)}
+                  className="p-2.5 bg-[#2e2f43]/5 text-[#2e2f43] hover:bg-[#2e2f43]/10 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Content Scroll */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <p className="text-sm text-gray-500 font-medium leading-relaxed">
+                  Para garantizar la calidad de las clases de baile y el control de aforo, las recuperaciones de asistencia se rigen por los siguientes requisitos estrictos:
+                </p>
+
+                <div className="space-y-4">
+                  {/* Rule 1 */}
+                  <div className="flex gap-4 items-start p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      1
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-[#2e2f43]">Tickets Disponibles en Bolsa</h4>
+                      <p className="text-xs text-gray-500 leading-relaxed font-medium">
+                        Debes disponer de un ticket de recuperación válido y no consumido en tu bolsa (las ranuras amarillas de tu dashboard). Los tickets se generan al faltar de forma justificada a tu clase oficial.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rule 2 */}
+                  <div className="flex gap-4 items-start p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      2
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-[#2e2f43]">Compatibilidad Estricta de Nivel y Estilo</h4>
+                      <p className="text-xs text-gray-500 leading-relaxed font-medium">
+                        La clase de destino a la que deseas asistir para recuperar debe coincidir exactamente en **Disciplina, Estilo, y Modalidad**. El nivel de la clase debe ser **igual o inferior** al nivel que tienes asignado en tu ticket original.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rule 3 */}
+                  <div className="flex gap-4 items-start p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      3
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-[#2e2f43]">No Estar Inscrito en el Curso Destino</h4>
+                      <p className="text-xs text-gray-500 leading-relaxed font-medium">
+                        Por motivos de control, no puedes utilizar un ticket de recuperación para asistir a una clase de un curso al que ya estás inscrito de forma oficial.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rule 4 */}
+                  <div className="flex gap-4 items-start p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      4
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-[#2e2f43]">Fecha de Caducidad y Plazos</h4>
+                      <p className="text-xs text-gray-500 leading-relaxed font-medium">
+                        Todos los tickets de recuperación tienen una fecha de caducidad. Por norma general del centro, deben consumirse antes de que finalice el trimestre escolar actual. ¡Consúmelos pronto!
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rule 5 */}
+                  <div className="flex gap-4 items-start p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      5
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-[#2e2f43]">Registro por QR en Recepción</h4>
+                      <p className="text-xs text-gray-500 leading-relaxed font-medium">
+                        Para canjear tu ticket y entrar a la clase, pulsa el botón de la cámara, enciende la cámara de tu móvil y escanea el código QR que se muestra en la pantalla de la app Kiosk de Recepción al entrar.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 pb-8">
+                  <button
+                    onClick={() => setShowRequirements(false)}
+                    className="w-full py-4 bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-white rounded-2xl font-bold text-base transition-colors shadow-lg"
+                  >
+                    Entendido, cerrar normativa
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

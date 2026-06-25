@@ -350,33 +350,6 @@ export default function Classes() {
         </div>
       </div>
 
-      {/* 2.1 Recuperaciones Acumuladas Slot Bar */}
-      <GlassCard className="p-4 bg-white/60">
-        <div className="flex justify-between items-center mb-3">
-            <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[#ffba15]" />
-                <h3 className="text-[10px] font-black text-[#2e2f43] uppercase tracking-widest">Recuperaciones Acumuladas</h3>
-            </div>
-            <span className="text-xs font-black text-[#2e2f43]">{saldoActual} disponibles</span>
-        </div>
-        <div className="flex gap-1.5">
-            {Array.from({ length: 10 }).map((_, i) => (
-                <div 
-                    key={i} 
-                    className={cn(
-                        "h-2.5 flex-1 rounded-full transition-all duration-500",
-                        i < saldoActual 
-                            ? "bg-[#ffba15] shadow-[0_0_10px_rgba(255,186,21,0.3)]" 
-                            : "bg-[#2e2f43]/5"
-                    )}
-                />
-            ))}
-        </div>
-        <p className="text-[9px] text-[#2e2f43]/40 font-bold mt-3 uppercase tracking-tight">
-            * Tienes hasta final de trimestre para consumir tus recuperaciones
-        </p>
-      </GlassCard>
-
       <div className="space-y-6">
           <div className="bg-white/40 backdrop-blur-xl rounded-[2.5rem] border border-white/50 shadow-xl overflow-hidden">
                 {/* Active Courses List */}
