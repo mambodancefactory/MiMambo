@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
 
@@ -7,7 +7,7 @@ interface CardProps {
   className?: string;
   title?: string;
   key?: any;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 export function GlassCard({ children, className, title, style }: CardProps) {

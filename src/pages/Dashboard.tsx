@@ -18,6 +18,11 @@ export default function Dashboard() {
   const [markingAttendance, setMarkingAttendance] = useState(false);
   const [attendanceSuccess, setAttendanceSuccess] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [scanResult, setScanResult] = useState<{
+    status: 'success' | 'error';
+    message: string;
+    courseName?: string;
+  } | null>(null);
 
   const handleScanRecovery = async (result: any) => {
     if (!result || !result.length) return;
@@ -29,45 +34,145 @@ export default function Dashboard() {
         if (parsed.classId) classId = parsed.classId;
     } catch(e) {}
     
-    if (!classId) return;
+    if (!classId) {
+        setScanResult({
+            status: 'error',
+            message: 'Código QR no válido o vacío.'
+        });
+        setShowScanner(false);
+        return;
+    }
 
     setShowScanner(false);
     
     try {
+        if (!user) {
+            throw new Error("No hay un usuario autenticado.");
+        }
+
+        // --- RECO DOC ---
         const classRef = doc(db, 'Clases', classId);
         const classSnap = await getDoc(classRef);
-        if (classSnap.exists()) {
-            const classData = classSnap.data();
-            let recos = classData.registro_recuperaciones_en_vivo || [];
-            if (!Array.isArray(recos)) {
-                recos = Object.entries(recos).map(([id, val]) => ({
-                    idAlumno: id,
-                    Asistencia: val,
-                    AppMarcacion: "Migrated",
-                    observacion_app: "Migrated legacy object"
-                }));
-            }
-            
-            recos = recos.filter((r: any) => r.idAlumno !== user.ID_Alumno);
-            recos.push({
-                idAlumno: user.ID_Alumno,
-                Asistencia: true,
-                AppMarcacion: "Mi Mambo",
-                observacion_app: "Recuperación desde Mi Mambo = true"
-            });
-            
-            await updateDoc(classRef, {
-                registro_recuperaciones_en_vivo: recos
-            });
-            
-            alert("Recuperación marcada correctamente");
-            window.location.reload();
-        } else {
-            alert("Clase no encontrada");
+        if (!classSnap.exists()) {
+            throw new Error("La clase no existe en el sistema.");
         }
-    } catch (err) {
-        console.error("Error recovering:", err);
-        alert("Error al marcar recuperación");
+        const classData = classSnap.data();
+
+        // --- COURSE DOC ---
+        if (!classData.ID_Curso) {
+            throw new Error("La clase no tiene un curso asociado.");
+        }
+        const courseRef = doc(db, 'Cursos', classData.ID_Curso);
+        const courseSnap = await getDoc(courseRef);
+        if (!courseSnap.exists()) {
+            throw new Error("El curso asociado a esta clase no existe.");
+        }
+        const courseData = courseSnap.data();
+        const courseName = courseData.NombreCurso || `${courseData.Disciplina || ''} ${courseData.Estilo || ''}`.trim() || "Clase sin nombre";
+
+        // --- RULE 1: Bolsa check ---
+        const tickets = user.bolsaRecuperaciones || [];
+        const unusedTickets = tickets.filter((t: any) => t.usado === false);
+        if (unusedTickets.length === 0) {
+            throw new Error("No tienes ningún ticket de recuperación disponible en tu bolsa (usado = false).");
+        }
+
+        // --- RULE 2: Match Disciplina, Estilo, Modalidad, Nivel ---
+        const matchField = (val1: any, val2: any) => {
+            const s1 = val1 ? String(val1).trim().toLowerCase() : "";
+            const s2 = val2 ? String(val2).trim().toLowerCase() : "";
+            return s1 === s2;
+        };
+
+        const matchingTicket = unusedTickets.find((t: any) => {
+            const dMatch = matchField(t.disciplina || t.Disciplina, courseData.Disciplina);
+            const eMatch = matchField(t.estilo || t.Estilo, courseData.Estilo);
+            const mMatch = matchField(t.modalidad || t.Modalidad, courseData.Modalidad);
+            const nMatch = matchField(t.nivel || t.Nivel, courseData.Nivel);
+            return dMatch && eMatch && mMatch && nMatch;
+        });
+
+        if (!matchingTicket) {
+            throw new Error(
+                `No tienes ningún ticket compatible en tu bolsa. Esta clase requiere:\n` +
+                `• Disciplina: ${courseData.Disciplina || 'Cualquiera'}\n` +
+                `• Estilo: ${courseData.Estilo || 'Ninguno'}\n` +
+                `• Modalidad: ${courseData.Modalidad || 'Cualquiera'}\n` +
+                `• Nivel: ${courseData.Nivel || 'Cualquiera'}`
+            );
+        }
+
+        // --- RULE 3: Not already enrolled in coursesInscritos ---
+        const getCursosInscritosArray = (cursosInscritos: any): any[] => {
+            if (!cursosInscritos) return [];
+            if (Array.isArray(cursosInscritos)) return cursosInscritos;
+            if (typeof cursosInscritos === 'object') {
+                const keys = Object.keys(cursosInscritos).sort((a, b) => {
+                    const numA = Number(a);
+                    const numB = Number(b);
+                    if (isNaN(numA) || isNaN(numB)) {
+                        return a.localeCompare(b);
+                    }
+                    return numA - numB;
+                });
+                return keys.map(k => cursosInscritos[k]).filter(item => item && typeof item === 'object');
+            }
+            return [];
+        };
+
+        const enrolledCursos = getCursosInscritosArray(user.cursosInscritos);
+        const enrolledIds = enrolledCursos.map((c: any) => c.id || c.ID_Curso).filter(Boolean);
+        if (enrolledIds.includes(classData.ID_Curso)) {
+            throw new Error("No puedes recuperar una clase de un curso en el que ya estás inscrito.");
+        }
+
+        // --- PROCESS RECOVERY ---
+        let recos = classData.registro_recuperaciones_en_vivo || [];
+        if (!Array.isArray(recos)) {
+            recos = Object.entries(recos).map(([id, val]) => ({
+                idAlumno: id,
+                Asistencia: val,
+                AppMarcacion: "Migrated"
+            }));
+        }
+        
+        recos = recos.filter((r: any) => r.idAlumno !== user.ID_Alumno);
+        recos.push({
+            idAlumno: user.ID_Alumno,
+            Asistencia: true,
+            AppMarcacion: "Mi Mambo"
+        });
+
+        // 1. Update Class document
+        await updateDoc(classRef, {
+            registro_recuperaciones_en_vivo: recos
+        });
+
+        // 2. Consume/Mark ticket as used in Alumno document
+        const alumnoRef = doc(db, 'Alumnos', user.ID_Alumno);
+        const updatedBolsa = tickets.map((t: any) => {
+            if (t.idAsistencia === matchingTicket.idAsistencia) {
+                return { ...t, usado: true };
+            }
+            return t;
+        });
+        await updateDoc(alumnoRef, {
+            bolsaRecuperaciones: updatedBolsa
+        });
+
+        // Success!
+        setScanResult({
+            status: 'success',
+            message: 'Tu asistencia por recuperación ha sido registrada de forma segura.',
+            courseName: courseName
+        });
+
+    } catch (err: any) {
+        console.error("Error recovering class:", err);
+        setScanResult({
+            status: 'error',
+            message: err.message || "Ha ocurrido un error inesperado al procesar la recuperación."
+        });
     }
   };
 
@@ -354,6 +459,93 @@ export default function Dashboard() {
               </div>
             </motion.div>
           </div>
+        )}
+
+        {scanResult && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`fixed inset-0 z-[200] flex flex-col items-center justify-between p-6 text-white text-center ${
+              scanResult.status === 'success' 
+                ? 'bg-gradient-to-br from-emerald-500 via-green-600 to-teal-800' 
+                : 'bg-gradient-to-br from-rose-500 via-red-600 to-red-800'
+            }`}
+          >
+            {/* Top spacing */}
+            <div className="h-12" />
+
+            {/* Central Content */}
+            <div className="max-w-md w-full px-4 flex flex-col items-center">
+              <motion.div
+                initial={{ scale: 0.5, rotate: -10 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", damping: 15 }}
+                className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mb-8 border border-white/30 shadow-lg"
+              >
+                {scanResult.status === 'success' ? (
+                  <CheckCircle size={48} className="text-white animate-pulse" />
+                ) : (
+                  <AlertCircle size={48} className="text-white" />
+                )}
+              </motion.div>
+
+              <motion.h2 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="text-3xl font-black tracking-tight mb-4"
+              >
+                {scanResult.status === 'success' ? '¡Recuperación Exitosa!' : 'Error de Recuperación'}
+              </motion.h2>
+
+              {scanResult.courseName && (
+                <motion.div 
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.15 }}
+                  className="bg-white/10 backdrop-blur-sm rounded-2xl py-3 px-6 mb-6 border border-white/15"
+                >
+                  <p className="text-xs uppercase tracking-wider text-white/70 font-semibold mb-1">Clase Recuperada</p>
+                  <p className="text-lg font-bold">{scanResult.courseName}</p>
+                </motion.div>
+              )}
+
+              <motion.p 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-base text-white/90 font-medium leading-relaxed max-w-sm whitespace-pre-line"
+              >
+                {scanResult.message}
+              </motion.p>
+            </div>
+
+            {/* Action Button at bottom */}
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="w-full max-w-xs mb-12"
+            >
+              <button
+                onClick={() => {
+                  const isSuccess = scanResult.status === 'success';
+                  setScanResult(null);
+                  if (isSuccess) {
+                    window.location.reload();
+                  }
+                }}
+                className={`w-full py-4 px-6 rounded-2xl font-bold text-lg shadow-xl hover:scale-105 active:scale-95 transition-all ${
+                  scanResult.status === 'success'
+                    ? 'bg-white text-emerald-700 hover:bg-emerald-50'
+                    : 'bg-white text-rose-700 hover:bg-rose-50'
+                }`}
+              >
+                {scanResult.status === 'success' ? 'Entendido' : 'Cerrar'}
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
