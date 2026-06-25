@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/context/AuthContext';
 import { useAttendance } from '@/hooks/useAttendance';
-import { Calendar, Clock, MapPin, CheckCircle, X, ChevronRight, ChevronLeft, AlertCircle, PartyPopper, QrCode } from 'lucide-react';
+import { Calendar, Clock, MapPin, CheckCircle, X, ChevronRight, ChevronLeft, AlertCircle, PartyPopper, QrCode, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInHours } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -19,7 +19,7 @@ export default function Dashboard() {
   const [attendanceSuccess, setAttendanceSuccess] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scanResult, setScanResult] = useState<{
-    status: 'success' | 'error';
+    status: 'success' | 'error' | 'processing';
     message: string;
     courseName?: string;
   } | null>(null);
@@ -44,6 +44,10 @@ export default function Dashboard() {
     }
 
     setShowScanner(false);
+    setScanResult({
+        status: 'processing',
+        message: 'Verificando tus tickets de recuperación de forma segura...'
+    });
     
     try {
         if (!user) {
@@ -420,7 +424,13 @@ export default function Dashboard() {
 
       <AnimatePresence>
         {showScanner && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <motion.div 
+            key="scanner-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -458,17 +468,20 @@ export default function Dashboard() {
                  />
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
 
         {scanResult && (
           <motion.div
+            key="scan-result-modal"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className={`fixed inset-0 z-[200] flex flex-col items-center justify-between p-6 text-white text-center ${
               scanResult.status === 'success' 
                 ? 'bg-gradient-to-br from-emerald-500 via-green-600 to-teal-800' 
+                : scanResult.status === 'processing'
+                ? 'bg-gradient-to-br from-[#1e1f2f] via-[#2e2f43] to-[#40415d]'
                 : 'bg-gradient-to-br from-rose-500 via-red-600 to-red-800'
             }`}
           >
@@ -485,6 +498,8 @@ export default function Dashboard() {
               >
                 {scanResult.status === 'success' ? (
                   <CheckCircle size={48} className="text-white animate-pulse" />
+                ) : scanResult.status === 'processing' ? (
+                  <Loader2 size={48} className="text-white animate-spin" />
                 ) : (
                   <AlertCircle size={48} className="text-white" />
                 )}
@@ -496,7 +511,11 @@ export default function Dashboard() {
                 transition={{ delay: 0.1 }}
                 className="text-3xl font-black tracking-tight mb-4"
               >
-                {scanResult.status === 'success' ? '¡Recuperación Exitosa!' : 'Error de Recuperación'}
+                {scanResult.status === 'success' 
+                  ? '¡Recuperación Exitosa!' 
+                  : scanResult.status === 'processing'
+                  ? 'Procesando...'
+                  : 'Error de Recuperación'}
               </motion.h2>
 
               {scanResult.courseName && (
@@ -528,22 +547,28 @@ export default function Dashboard() {
               transition={{ delay: 0.3 }}
               className="w-full max-w-xs mb-12"
             >
-              <button
-                onClick={() => {
-                  const isSuccess = scanResult.status === 'success';
-                  setScanResult(null);
-                  if (isSuccess) {
-                    window.location.reload();
-                  }
-                }}
-                className={`w-full py-4 px-6 rounded-2xl font-bold text-lg shadow-xl hover:scale-105 active:scale-95 transition-all ${
-                  scanResult.status === 'success'
-                    ? 'bg-white text-emerald-700 hover:bg-emerald-50'
-                    : 'bg-white text-rose-700 hover:bg-rose-50'
-                }`}
-              >
-                {scanResult.status === 'success' ? 'Entendido' : 'Cerrar'}
-              </button>
+              {scanResult.status !== 'processing' ? (
+                <button
+                  onClick={() => {
+                    const isSuccess = scanResult.status === 'success';
+                    setScanResult(null);
+                    if (isSuccess) {
+                      window.location.reload();
+                    }
+                  }}
+                  className={`w-full py-4 px-6 rounded-2xl font-bold text-lg shadow-xl hover:scale-105 active:scale-95 transition-all ${
+                    scanResult.status === 'success'
+                      ? 'bg-white text-emerald-700 hover:bg-emerald-50'
+                      : 'bg-white text-rose-700 hover:bg-rose-50'
+                  }`}
+                >
+                  {scanResult.status === 'success' ? 'Entendido' : 'Cerrar'}
+                </button>
+              ) : (
+                <div className="h-[60px] flex flex-col items-center justify-center gap-2">
+                  <span className="text-sm text-white/60 font-semibold animate-pulse">Por favor, espera un momento...</span>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
