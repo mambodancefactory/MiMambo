@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GlassCard } from '@/components/GlassCard';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { useAttendance } from '@/hooks/useAttendance';
 import { useCalculoAsistenciaEnVivo } from '@/hooks/useCalculoAsistenciaEnVivo';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay, startOfDay, parseISO } from 'date-fns';
@@ -258,13 +258,119 @@ export default function Classes() {
   const activePack = hasActivePack ? privateClasses[0] : null;
 
   return (
-    <div className="space-y-4 pt-0 pb-24 relative" style={{ paddingTop: '0px' }}>
+    <div className="space-y-6 pt-0 pb-24 relative" style={{ paddingTop: '0px' }}>
       <Header title="Mis Clases" />
 
-      {/* 1. Calendar Section (Compact Card) */}
-      <GlassCard className="p-4" style={{ borderRadius: '16px' }}>
-        <div className="flex items-center justify-between mb-2">
-            <h2 className="text-base font-bold text-[#2e2f43] capitalize">
+      {/* 1. Indicadores de Asistencia, Faltas y recuperaciones */}
+      <div className="grid grid-cols-3 gap-3">
+        <GlassCard className="p-3 bg-white/60 border-white/40 flex flex-col items-center justify-center text-center rounded-2xl shadow-sm">
+            <span className="text-2xl font-black text-[#2e2f43]">{asistenciasTrimestre}</span>
+            <span className="text-[9px] font-black text-[#2e2f43]/40 uppercase tracking-widest mt-1">Asistencias</span>
+        </GlassCard>
+        <GlassCard className="p-3 bg-white/60 border-white/40 flex flex-col items-center justify-center text-center rounded-2xl shadow-sm">
+            <span className="text-2xl font-black text-rose-500">{faltasTrimestre}</span>
+            <span className="text-[9px] font-black text-[#2e2f43]/40 uppercase tracking-widest mt-1">Faltas</span>
+        </GlassCard>
+        <GlassCard className="p-3 bg-white/60 border-white/40 flex flex-col items-center justify-center text-center rounded-2xl shadow-sm">
+            <span className="text-2xl font-black text-amber-500">{recuperacionesTrimestre}</span>
+            <span className="text-[9px] font-black text-[#2e2f43]/40 uppercase tracking-widest mt-1">Recuperadas</span>
+        </GlassCard>
+      </div>
+
+      {/* 2. Progreso de Asistencia (Gauge) */}
+      <GlassCard className="p-6 bg-white/60 border-white/50 rounded-[2.5rem] shadow-xl relative overflow-hidden flex flex-col items-center justify-center text-center">
+        <div className="w-full max-w-[220px] aspect-[2/1.1] relative mx-auto mb-2">
+          <svg viewBox="0 0 200 110" className="w-full h-full">
+            {/* Ambient background shadow path */}
+            <path 
+              d="M 20 95 A 80 80 0 0 1 180 95" 
+              fill="none" 
+              stroke="#2e2f43" 
+              strokeOpacity="0.04" 
+              strokeWidth="11" 
+              strokeLinecap="round" 
+            />
+            {/* Gauge Track */}
+            <path 
+              d="M 20 95 A 80 80 0 0 1 180 95" 
+              fill="none" 
+              stroke="#2e2f43" 
+              strokeOpacity="0.08" 
+              strokeWidth="8" 
+              strokeLinecap="round" 
+            />
+            {/* Gauge Filled Arc */}
+            <path 
+              d="M 20 95 A 80 80 0 0 1 180 95" 
+              fill="none" 
+              stroke="#ffba15" 
+              strokeWidth="8" 
+              strokeLinecap="round" 
+              strokeDasharray="251.3" 
+              strokeDashoffset={251.3 - (251.3 * stats.attendanceRate) / 100}
+              className="transition-all duration-1000 ease-out"
+            />
+            {/* Radial Ticks */}
+            {Array.from({ length: 21 }).map((_, i) => {
+              const angle = 180 - (i * 180) / 20;
+              const rad = (angle * Math.PI) / 180;
+              const r1 = 64;
+              const r2 = 70;
+              const x1 = 100 + r1 * Math.cos(rad);
+              const y1 = 95 - r1 * Math.sin(rad);
+              const x2 = 100 + r2 * Math.cos(rad);
+              const y2 = 95 - r2 * Math.sin(rad);
+              
+              const isFilled = (i / 20) * 100 <= stats.attendanceRate;
+              
+              return (
+                <line 
+                  key={i}
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke={isFilled ? "#ffba15" : "#2e2f43"}
+                  strokeOpacity={isFilled ? 0.9 : 0.08}
+                  strokeWidth="1.5"
+                />
+              );
+            })}
+          </svg>
+          
+          {/* Center display stats */}
+          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-end h-full">
+            <span className="text-4xl font-black text-[#2e2f43] tracking-tighter leading-none">
+              {stats.attendanceRate}%
+            </span>
+            <span className="text-[9px] font-black uppercase text-[#2e2f43]/45 tracking-widest mt-1.5">
+              Tasa de Asistencia
+            </span>
+          </div>
+        </div>
+
+        {/* Dynamic status badge comment */}
+        <p className="text-[10px] text-[#2e2f43]/50 font-black uppercase tracking-widest mb-4">
+          {stats.attendanceRate >= 85 ? "¡Excelente ritmo de asistencia!" : "Intenta recuperar tus faltas pronto"}
+        </p>
+
+        {/* Small dark horizontal pills style just like the reference image */}
+        <div className="flex gap-2 w-full justify-center">
+          <div className="bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-white py-2 px-4 rounded-full flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-wider shadow-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+            <span>{asistenciasTrimestre} asistidas</span>
+          </div>
+          <div className="bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-white py-2 px-4 rounded-full flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-wider shadow-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+            <span>{faltasTrimestre} faltas</span>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* 3. Calendario */}
+      <GlassCard className="p-5 bg-white/40 border-white/40 rounded-[2.5rem] shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-black text-[#2e2f43] uppercase tracking-widest capitalize">
                 {format(currentMonth, 'MMMM yyyy', { locale: es })}
             </h2>
         </div>
@@ -334,137 +440,180 @@ export default function Classes() {
         </div>
       </GlassCard>
 
-      {/* 2. Insights Section (Distinct Cards) */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-            <span className="text-2xl font-bold text-[#2e2f43]">{asistenciasTrimestre}</span>
-            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1">Asistencias</span>
+      {/* 4. Gráfico evolutivo de las asistencias del mes */}
+      <GlassCard className="p-5 bg-white/40 border-white/40 rounded-[2.5rem] shadow-xl">
+        <div className="mb-4">
+          <h3 className="text-xs font-black text-[#2e2f43] uppercase tracking-widest">Evolutivo del Mes</h3>
+          <p className="text-[10px] text-gray-500 font-medium leading-relaxed uppercase tracking-wider mt-0.5">Asistencias acumuladas</p>
         </div>
-        <div style={{ borderRadius: '16px' }} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-            <span className="text-2xl font-bold text-red-500">{faltasTrimestre}</span>
-            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1">Faltas</span>
+        <div className="h-44 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart 
+              data={(() => {
+                let cumulative = 0;
+                return daysInMonth.map(date => {
+                  const dayHistory = stats.history.find(h => isSameDay(h.date, date));
+                  const attended = dayHistory?.entries.some(e => e.status === 'present' || e.status === 'recovered') ? 1 : 0;
+                  cumulative += attended;
+                  return {
+                    day: format(date, 'd'),
+                    'Asistencias': cumulative
+                  };
+                });
+              })()}
+              margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="colorAsistencias" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ffba15" stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor="#ffba15" stopOpacity={0.0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} vertical={false} />
+              <XAxis 
+                dataKey="day" 
+                tick={{ fill: '#2e2f43', fillOpacity: 0.4, fontSize: 8, fontWeight: 'bold' }} 
+                axisLine={false}
+                tickLine={false}
+                interval={4}
+              />
+              <YAxis 
+                tick={{ fill: '#2e2f43', fillOpacity: 0.4, fontSize: 8, fontWeight: 'bold' }} 
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#ffffff', 
+                  borderRadius: '16px', 
+                  border: 'none',
+                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)',
+                  fontSize: '11px',
+                  fontWeight: 'black',
+                  color: '#2e2f43'
+                }}
+                labelFormatter={(label) => `Día ${label}`}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="Asistencias" 
+                stroke="#ffba15" 
+                strokeWidth={3} 
+                fillOpacity={1} 
+                fill="url(#colorAsistencias)" 
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
-        <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-            <span className="text-2xl font-bold text-[#ffba15]">{recuperacionesTrimestre}</span>
-            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1">Recuperaciones</span>
-        </div>
-      </div>
+      </GlassCard>
 
-      <div className="space-y-6">
-          <div className="bg-white/40 backdrop-blur-xl rounded-[2.5rem] border border-white/50 shadow-xl overflow-hidden">
-                {/* Active Courses List */}
-                <div className="p-4 space-y-4">
-                    <div className="flex justify-between items-center px-2">
-                        <h3 className="text-xs font-bold text-[#2e2f43]/60 uppercase tracking-wider">Mis Cursos</h3>
-                        <button 
-                            onClick={() => navigate('/courses')}
-                            className="flex items-center gap-1.5 text-white font-bold text-xs bg-[#2e2f43] px-3 py-1.5 rounded-full hover:bg-[#2e2f43]/90 transition-colors shadow-sm"
-                        >
-                            <Plus size={14} />
-                            Añadir Curso
-                        </button>
-                    </div>
+      {/* 5. Mis Cursos */}
+      <div className="bg-white/40 backdrop-blur-xl rounded-[2.5rem] border border-white/50 shadow-xl overflow-hidden">
+        <div className="p-5 space-y-4">
+            <div className="px-2">
+                <h3 className="text-xs font-black text-[#2e2f43] uppercase tracking-widest">Mis Cursos</h3>
+            </div>
 
-                    <div className="space-y-3">
-                        {myCourses.length > 0 ? (
-                            myCourses.map((course) => {
-                                const isExpanded = expandedCourseId === course.ID_Curso;
-                                return (
-                                    <motion.div
-                                        key={course.ID_Curso}
-                                        layout
-                                        className="bg-white rounded-3xl border border-white/60 shadow-sm overflow-hidden"
-                                    >
-                                        <div 
-                                            className="p-5 cursor-pointer"
-                                            onClick={() => setExpandedCourseId(isExpanded ? null : course.ID_Curso)}
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[9px] font-bold px-2 py-0.5 bg-[#2e2f43]/5 text-[#2e2f43] rounded-full uppercase">
-                                                            {course.Modalidad || 'Regular'}
-                                                        </span>
-                                                        <span className="text-[9px] font-bold px-2 py-0.5 bg-[#ffba15]/10 text-[#ffba15] rounded-full uppercase">
-                                                            {course.Nivel}
-                                                        </span>
-                                                        {course.rol && (
-                                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                                                course.rol.toLowerCase() === 'leader' 
-                                                                    ? 'bg-blue-50 text-blue-600 border border-blue-100/30' 
-                                                                    : 'bg-pink-50 text-pink-600 border border-pink-100/30'
-                                                            }`}>
-                                                                {course.rol === 'leader' ? 'Leader' : 'Follower'}
-                                                            </span>
+            <div className="space-y-3">
+                {myCourses.length > 0 ? (
+                    myCourses.map((course) => {
+                        const isExpanded = expandedCourseId === course.ID_Curso;
+                        return (
+                            <motion.div
+                                key={course.ID_Curso}
+                                layout
+                                className="bg-white rounded-3xl border border-white/60 shadow-sm overflow-hidden"
+                            >
+                                <div 
+                                    className="p-5 cursor-pointer"
+                                    onClick={() => setExpandedCourseId(isExpanded ? null : course.ID_Curso)}
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-[9px] font-bold px-2 py-0.5 bg-[#2e2f43]/5 text-[#2e2f43] rounded-full uppercase">
+                                                    {course.Modalidad || 'Regular'}
+                                                </span>
+                                                <span className="text-[9px] font-bold px-2 py-0.5 bg-[#ffba15]/10 text-[#ffba15] rounded-full uppercase">
+                                                    {course.Nivel}
+                                                </span>
+                                                {course.rol && (
+                                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                                        course.rol.toLowerCase() === 'leader' 
+                                                            ? 'bg-blue-50 text-blue-600 border border-blue-100/30' 
+                                                            : 'bg-pink-50 text-pink-600 border border-pink-100/30'
+                                                    }`}>
+                                                        {course.rol === 'leader' ? 'Leader' : 'Follower'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <h4 className="text-lg font-bold text-[#2e2f43]">
+                                                {[course.Disciplina, course.Estilo].filter(Boolean).join(' ')}
+                                            </h4>
+                                            <p className="text-xs text-[#2e2f43]/60 font-medium">
+                                                {course.DiasSemana} • {course.HoraInicio}
+                                            </p>
+                                        </div>
+                                        <div className="bg-[#2e2f43]/5 text-[#2e2f43] p-2.5 rounded-2xl">
+                                            <BookOpen size={20} />
+                                        </div>
+                                    </div>
+
+                                    <AnimatePresence>
+                                        {isExpanded && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                className="mt-6 pt-6 border-t border-gray-100 space-y-4"
+                                            >
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-1">
+                                                        <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ubicación</p>
+                                                        <div className="flex items-center gap-1.5 text-sm font-bold text-[#2e2f43]">
+                                                            <MapPin size={14} className="text-purple-500" />
+                                                            {course.Ubicacion || 'Mambo Dance Factory'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1 text-right">
+                                                        <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">WhatsApp</p>
+                                                        {course.EnlaceWhatsApp ? (
+                                                            <a 
+                                                                href={course.EnlaceWhatsApp} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="flex items-center justify-end gap-1.5 text-sm font-bold text-green-600"
+                                                            >
+                                                                Grupo de Clase
+                                                                <MessageCircle size={14} />
+                                                            </a>
+                                                        ) : (
+                                                            <p className="text-sm font-bold text-gray-300 italic">No disponible</p>
                                                         )}
                                                     </div>
-                                                    <h4 className="text-lg font-bold text-[#2e2f43]">
-                                                        {[course.Disciplina, course.Estilo].filter(Boolean).join(' ')}
-                                                    </h4>
-                                                    <p className="text-xs text-[#2e2f43]/60 font-medium">
-                                                        {course.DiasSemana} • {course.HoraInicio}
-                                                    </p>
                                                 </div>
-                                                <div className="bg-[#2e2f43]/5 text-[#2e2f43] p-2.5 rounded-2xl">
-                                                    <BookOpen size={20} />
-                                                </div>
-                                            </div>
-
-                                            <AnimatePresence>
-                                                {isExpanded && (
-                                                    <motion.div
-                                                        initial={{ opacity: 0, height: 0 }}
-                                                        animate={{ opacity: 1, height: 'auto' }}
-                                                        exit={{ opacity: 0, height: 0 }}
-                                                        className="mt-6 pt-6 border-t border-gray-100 space-y-4"
-                                                    >
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div className="space-y-1">
-                                                                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ubicación</p>
-                                                                <div className="flex items-center gap-1.5 text-sm font-bold text-[#2e2f43]">
-                                                                    <MapPin size={14} className="text-purple-500" />
-                                                                    {course.Ubicacion || 'Mambo Dance Factory'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="space-y-1 text-right">
-                                                                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">WhatsApp</p>
-                                                                {course.EnlaceWhatsApp ? (
-                                                                    <a 
-                                                                        href={course.EnlaceWhatsApp} 
-                                                                        target="_blank" 
-                                                                        rel="noopener noreferrer"
-                                                                        className="flex items-center justify-end gap-1.5 text-sm font-bold text-green-600"
-                                                                    >
-                                                                        Grupo de Clase
-                                                                        <MessageCircle size={14} />
-                                                                    </a>
-                                                                ) : (
-                                                                    <p className="text-sm font-bold text-gray-300 italic">No disponible</p>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </motion.div>
-                                                )}
-                                            </AnimatePresence>
-                                        </div>
-                                    </motion.div>
-                                );
-                            })
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-12 bg-white/20 rounded-3xl border border-dashed border-[#2e2f43]/10">
-                                <BookOpen size={32} className="text-[#2e2f43]/20 mb-2" />
-                                <p className="text-sm font-bold text-[#2e2f43]/40">No tienes cursos activos</p>
-                                <button 
-                                    onClick={() => navigate('/courses')}
-                                    className="mt-4 text-blue-600 font-bold text-xs underline"
-                                >
-                                    Explorar cursos
-                                </button>
-                            </div>
-                        )}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            </motion.div>
+                        );
+                    })
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-12 bg-white/20 rounded-3xl border border-dashed border-[#2e2f43]/10">
+                        <BookOpen size={32} className="text-[#2e2f43]/20 mb-2" />
+                        <p className="text-sm font-bold text-[#2e2f43]/40">No tienes cursos activos</p>
+                        <button 
+                            onClick={() => navigate('/courses')}
+                            className="mt-4 text-blue-600 font-bold text-xs underline"
+                        >
+                            Explorar cursos
+                        </button>
                     </div>
-                </div>
+                )}
             </div>
+        </div>
       </div>
 
       {/* 4. Private Classes Section */}

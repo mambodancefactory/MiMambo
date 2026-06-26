@@ -24,7 +24,7 @@ export function BattlepassWidget() {
 
   if (loading || loadingHP) {
     return (
-      <div className="w-full h-48 bg-white/10 animate-pulse rounded-[2.5rem] backdrop-blur-md border border-white/20" />
+      <div className="w-full h-48 bg-white/10 animate-pulse rounded-2xl backdrop-blur-md border border-white/20" />
     );
   }
 
@@ -43,10 +43,10 @@ export function BattlepassWidget() {
     <>
       {/* Widget Card - Dark Premium Gaming Theme */}
       <motion.div 
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
         onClick={() => setIsOpen(true)}
-        className="relative w-full overflow-hidden rounded-[2.5rem] bg-[#0f172a] border border-[#ffba15]/50 shadow-[0_0_30px_rgba(255,186,21,0.15)] cursor-pointer group"
+        className="relative w-full overflow-hidden rounded-2xl bg-[#0f172a] border border-[#ffba15]/30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] cursor-pointer group"
       >
         {/* Background Effects */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,186,21,0.1),transparent_70%)]" />

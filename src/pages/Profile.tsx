@@ -2,16 +2,18 @@ import React, { useState, useRef } from 'react';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/context/AuthContext';
 import { safeToDate } from '@/hooks/useRecovery';
-import { Camera, LogOut, Settings, Upload, Loader2, Link as LinkIcon, X, Search, QrCode, AlertTriangle, Plus, Info, Lock, Shield, CheckCircle, XCircle, ChevronRight, ShieldCheck, MessageSquare, Image as ImageIcon, User } from 'lucide-react';
+import { Camera, LogOut, Settings, Upload, Loader2, Link as LinkIcon, X, Search, QrCode, AlertTriangle, Plus, Info, Lock, Shield, CheckCircle, XCircle, ChevronRight, ShieldCheck, MessageSquare, Image as ImageIcon, User, BookOpen } from 'lucide-react';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Header } from '@/components/Header';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 export default function Profile() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkSearchTerm, setLinkSearchTerm] = useState('');
@@ -471,6 +473,25 @@ export default function Profile() {
 
       {/* Actions */}
       <div className="space-y-4">
+        {/* Añadir Curso Card */}
+        <div className="bg-white rounded-[2.5rem] p-6 shadow-xl border border-gray-100/50 flex flex-col items-center justify-center text-center relative overflow-hidden">
+          <div className="absolute top-0 inset-x-0 h-2 bg-[#ffba15]" />
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-[#ffba15] mb-3">
+            <BookOpen size={22} />
+          </div>
+          <h3 className="font-black text-[#2e2f43] uppercase tracking-wider text-xs mb-1">Inscribirse en Curso</h3>
+          <p className="text-xs text-gray-500 mb-4 max-w-[240px] font-medium leading-relaxed">
+            Inscríbete en nuevos cursos de salsa, bachata y otros estilos disponibles en la escuela.
+          </p>
+          <button 
+            onClick={() => navigate('/courses')}
+            className="w-full py-3.5 bg-[#2e2f43] hover:bg-[#2e2f43]/95 text-[#ffba15] rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            <Plus size={14} />
+            Explorar y Añadir Curso
+          </button>
+        </div>
+
         {/* Link Profile */}
         <button 
           onClick={() => setShowLinkModal(true)}

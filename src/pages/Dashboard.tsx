@@ -250,9 +250,9 @@ export default function Dashboard() {
         <h3 className="text-xs font-bold px-2 text-[#2e2f43]/60 uppercase tracking-wider">Próximas Clases</h3>
         
         {loading ? (
-            <div className="px-4"><div className="h-48 w-full bg-[#2e2f43]/5 rounded-[2.5rem] animate-pulse"></div></div>
+            <div className="h-48 w-full bg-[#2e2f43]/5 rounded-2xl animate-pulse"></div>
         ) : upcomingClasses && upcomingClasses.length > 0 ? (
-            <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-4 px-4 pb-4 -mx-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-4 pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {upcomingClasses.map((cls) => {
                     const hoursUntilClass = differenceInHours(cls.startTime, new Date());
                     const canMarkAttendance = true; // Permitting always if not closed: cls.asistenciaCerrada === false
@@ -260,8 +260,8 @@ export default function Dashboard() {
                     
                     return (
                         <div key={cls.id} className="min-w-[90%] snap-center shrink-0 relative group">
-                            <div className="absolute inset-0 bg-[#2e2f43] rounded-[2.5rem] blur-2xl opacity-5 transition-opacity" />
-                            <GlassCard className="relative overflow-hidden border-white/40 bg-white/40 backdrop-blur-2xl rounded-[2.5rem] p-6 shadow-xl h-full flex flex-col justify-between">
+                            <div className="absolute inset-0 bg-[#2e2f43] rounded-2xl blur-xl opacity-2 transition-opacity" />
+                            <GlassCard className="relative overflow-hidden border-white/40 bg-white/40 backdrop-blur-2xl rounded-2xl p-6 shadow-sm h-full flex flex-col justify-between">
                                 <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-[#2e2f43]/5 rounded-full blur-3xl" />
                                 
                                 <div>
@@ -290,7 +290,7 @@ export default function Dashboard() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="bg-[#2e2f43] p-3 rounded-2xl shadow-lg shadow-[#2e2f43]/20 shrink-0">
+                                        <div className="bg-[#2e2f43] p-3 rounded-2xl shadow-sm shrink-0">
                                             <Calendar className="text-white" size={20} />
                                         </div>
                                     </div>
@@ -336,7 +336,7 @@ export default function Dashboard() {
                                             <button
                                                 onClick={() => handleMarkAttendanceLive(cls.id, true)}
                                                 disabled={markingAttendance}
-                                                className="w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all bg-[#2e2f43] text-white shadow-lg shadow-[#2e2f43]/20 hover:shadow-[#2e2f43]/30 active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                                className="w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all bg-[#2e2f43] text-white shadow-sm hover:bg-[#2e2f43]/90 active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-50"
                                             >
                                                 <CheckCircle size={14} /> Asistiré
                                             </button>
@@ -349,19 +349,17 @@ export default function Dashboard() {
                 })}
             </div>
         ) : (
-            <div className="px-4">
-                <GlassCard className="p-8 text-center bg-white/40 border-white/40">
-                    <p className="text-sm text-[#2e2f43]/40 font-bold">
-                        No tienes clases programadas esta semana.
-                    </p>
-                </GlassCard>
-            </div>
+            <GlassCard className="p-8 text-center bg-white/40 border-white/40 rounded-2xl shadow-sm">
+                <p className="text-sm text-[#2e2f43]/40 font-bold">
+                    No tienes clases programadas esta semana.
+                </p>
+            </GlassCard>
         )}
       </div>
 
       {/* 2 - Recuperaciones Acumuladas */}
       <div className="w-full">
-        <GlassCard className="p-5 bg-white/40 border-white/40 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+        <GlassCard className="p-5 bg-white/40 border-white/40 rounded-2xl shadow-sm relative overflow-hidden">
           <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-[#ffba15]" />
@@ -423,7 +421,7 @@ export default function Dashboard() {
       {/* Next Event Banner */}
       {events.length > 0 && (
         <div className="px-2">
-          <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-lg">
+          <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-sm">
             <img 
               src={events[0].image || "https://images.unsplash.com/photo-1545128485-c400e7702796?w=800&q=80"} 
               alt={events[0].title}
@@ -652,7 +650,7 @@ export default function Dashboard() {
               
               <button 
                 onClick={() => setSelectedTicket(null)}
-                className="absolute top-4 right-4 p-1.5 bg-gray-50 hover:bg-gray-100 rounded-full text-[#2e2f43]/40 hover:text-[#2e2f43] transition-colors"
+                className="absolute top-4 right-4 p-1.5 bg-gray-50 hover:bg-gray-100 rounded-full text-[#2e2f43]/40 hover:text-[#2e2f43] transition-colors z-10"
               >
                 <X size={18} />
               </button>
@@ -704,11 +702,44 @@ export default function Dashboard() {
                 )}
               </div>
 
+              {/* Dashed line with side notches */}
+              <div className="relative my-4">
+                {/* Left Notch */}
+                <div className="absolute -left-[36px] top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#18181b]" />
+                {/* Right Notch */}
+                <div className="absolute -right-[36px] top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#18181b]" />
+                {/* Dashed Divider */}
+                <div className="border-t-2 border-dashed border-[#2e2f43]/15 mx-2" />
+              </div>
+
+              {/* Barcode representation */}
+              <div className="flex flex-col items-center justify-center mb-4">
+                <div className="flex items-end gap-[2px] h-10 w-48 justify-center opacity-85">
+                  <div className="w-[2px] h-full bg-[#2e2f43]" />
+                  <div className="w-[4px] h-full bg-[#2e2f43]" />
+                  <div className="w-[1px] h-full bg-[#2e2f43]" />
+                  <div className="w-[3px] h-full bg-[#2e2f43]" />
+                  <div className="w-[1px] h-full bg-[#2e2f43]" />
+                  <div className="w-[5px] h-full bg-[#2e2f43]" />
+                  <div className="w-[2px] h-full bg-[#2e2f43]" />
+                  <div className="w-[1px] h-full bg-[#2e2f43]" />
+                  <div className="w-[4px] h-full bg-[#2e2f43]" />
+                  <div className="w-[2px] h-full bg-[#2e2f43]" />
+                  <div className="w-[3px] h-full bg-[#2e2f43]" />
+                  <div className="w-[1px] h-full bg-[#2e2f43]" />
+                  <div className="w-[2px] h-full bg-[#2e2f43]" />
+                  <div className="w-[4px] h-full bg-[#2e2f43]" />
+                </div>
+                <span className="text-[9px] font-mono font-bold text-[#2e2f43]/45 tracking-[0.25em] mt-1.5 uppercase">
+                  MAMBO-REC-{selectedTicket.idAsistencia?.substring(0, 6) || 'TICKET'}
+                </span>
+              </div>
+
               <button
                 onClick={() => setSelectedTicket(null)}
-                className="w-full mt-4 py-3 bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-white rounded-2xl font-bold text-sm tracking-wide transition-colors shadow-lg"
+                className="w-full py-3.5 bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-colors shadow-lg"
               >
-                Cerrar
+                Cerrar Ticket
               </button>
             </motion.div>
           </motion.div>
