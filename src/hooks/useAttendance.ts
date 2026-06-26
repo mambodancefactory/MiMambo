@@ -34,6 +34,7 @@ export interface NextClass {
   attendanceMarked: boolean;
   rol?: string | null;
   asistenciaCerrada?: boolean;
+  attendanceStatus?: 'present' | 'absent' | 'none';
 }
 
 interface Event {
@@ -419,8 +420,40 @@ export function useAttendance() {
                         }
                     }
                     
-                    const attendanceMarked = next.registro_en_vivo?.[user.ID_Alumno] === true || 
-                                             attendanceSnap.docs.some(d => d.data().ID_Clase === next.id);
+                    let attendanceStatus: 'present' | 'absent' | 'none' = 'none';
+                    const reg = next.registro_en_vivo;
+                    if (reg) {
+                        if (Array.isArray(reg)) {
+                            const found = reg.find((r: any) => r.idAlumno === user.ID_Alumno);
+                            if (found) {
+                                attendanceStatus = found.Asistencia === true ? 'present' : 'absent';
+                            }
+                        } else if (typeof reg === 'object') {
+                            if (Object.prototype.hasOwnProperty.call(reg, user.ID_Alumno)) {
+                                attendanceStatus = reg[user.ID_Alumno] === true ? 'present' : 'absent';
+                            }
+                        }
+                    }
+
+                    const recoReg = next.registro_recuperaciones_en_vivo;
+                    if (recoReg && attendanceStatus === 'none') {
+                        if (Array.isArray(recoReg)) {
+                            const found = recoReg.some((r: any) => r.idAlumno === user.ID_Alumno && r.Asistencia === true);
+                            if (found) {
+                                attendanceStatus = 'present';
+                            }
+                        } else if (typeof recoReg === 'object') {
+                            if (recoReg[user.ID_Alumno] === true) {
+                                attendanceStatus = 'present';
+                            }
+                        }
+                    }
+
+                    if (attendanceStatus === 'none' && attendanceSnap.docs.some(d => d.data().ID_Clase === next.id)) {
+                        attendanceStatus = 'present';
+                    }
+
+                    const attendanceMarked = attendanceStatus === 'present';
 
                     const cursosInscritosArr = getCursosInscritosArray(user.cursosInscritos);
                     const inscrito = cursosInscritosArr.find((c: any) => (c.id || c.ID_Curso) === next.ID_Curso);
@@ -435,7 +468,8 @@ export function useAttendance() {
                         location: course.Ubicacion || 'Sala Principal',
                         attendanceMarked: attendanceMarked,
                         rol: rol,
-                        asistenciaCerrada: next.AsistenciaCerrada === true || next.AsistenciaCerrada === 'true'
+                        asistenciaCerrada: next.AsistenciaCerrada === true || next.AsistenciaCerrada === 'true',
+                        attendanceStatus: attendanceStatus
                     };
                 }
                 return null;

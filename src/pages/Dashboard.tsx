@@ -34,6 +34,55 @@ export default function Dashboard() {
   const [showEmptySlotInfo, setShowEmptySlotInfo] = useState<boolean>(false);
   const [showRequirements, setShowRequirements] = useState<boolean>(false);
 
+  const [localAttendanceStates, setLocalAttendanceStates] = useState<Record<string, 'present' | 'absent'>>({});
+  const [confirmModal, setConfirmModal] = useState<{
+    classId: string;
+    newStatus: boolean;
+    courseName: string;
+  } | null>(null);
+  const [warningModal, setWarningModal] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
+
+  const handleSelectAttendance = (cls: any, newStatus: boolean) => {
+    const currentStatus = localAttendanceStates[cls.id] || cls.attendanceStatus || 'none';
+    const hasStarted = new Date() >= new Date(cls.startTime);
+    const isClosed = cls.asistenciaCerrada;
+
+    const newStatusString = newStatus ? 'present' : 'absent';
+    if (currentStatus === newStatusString) {
+      return; 
+    }
+
+    if (currentStatus !== 'none') {
+      if (hasStarted || isClosed) {
+        setWarningModal({
+          title: "Acción no permitida",
+          message: "No puedes cambiar tu asistencia. Esta clase ya ha comenzado o la asistencia ha sido cerrada por la academia."
+        });
+        return;
+      }
+
+      setConfirmModal({
+        classId: cls.id,
+        newStatus: newStatus,
+        courseName: cls.courseName
+      });
+    } else {
+      executeMarkAttendance(cls.id, newStatus);
+    }
+  };
+
+  const executeMarkAttendance = async (classId: string, status: boolean) => {
+    setLocalAttendanceStates(prev => ({
+      ...prev,
+      [classId]: status ? 'present' : 'absent'
+    }));
+
+    await handleMarkAttendanceLive(classId, status);
+  };
+
   const handleScanRecovery = async (result: any) => {
     if (!result || !result.length) return;
     const rawValue = result[0].rawValue;
@@ -316,32 +365,54 @@ export default function Dashboard() {
                                 </div>
 
                                 <div>
-                                    {isClosed ? (
-                                        <div className="w-full py-3 rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] bg-gray-100 text-gray-400 text-center border border-gray-200">
-                                            Asistencia Cerrada
-                                        </div>
-                                    ) : cls.attendanceMarked ? (
-                                        <div className="w-full py-3 rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] bg-green-50 text-green-600 text-center border border-green-100 flex items-center justify-center gap-2">
-                                            <CheckCircle size={14} /> Marcada
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-2 gap-2 mt-auto">
-                                            <button
-                                                onClick={() => handleMarkAttendanceLive(cls.id, false)}
-                                                disabled={markingAttendance}
-                                                className="w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all bg-red-50 text-red-600 hover:bg-red-100 active:scale-95 border border-red-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
-                                            >
-                                                <X size={14} /> Faltaré
-                                            </button>
-                                            <button
-                                                onClick={() => handleMarkAttendanceLive(cls.id, true)}
-                                                disabled={markingAttendance}
-                                                className="w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all bg-[#2e2f43] text-white shadow-sm hover:bg-[#2e2f43]/90 active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-50"
-                                            >
-                                                <CheckCircle size={14} /> Asistiré
-                                            </button>
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const currentStatus = localAttendanceStates[cls.id] || cls.attendanceStatus || 'none';
+                                        const hasStarted = new Date() >= cls.startTime;
+                                        const isClosedOrStarted = isClosed || hasStarted;
+
+                                        return (
+                                            <div className="space-y-2 mt-auto">
+                                                {isClosedOrStarted && (
+                                                    <p className="text-[9px] font-bold text-center text-[#2e2f43]/40 uppercase tracking-wider">
+                                                        {isClosed ? "Asistencia Cerrada por la Academia" : "La clase ya ha comenzado"}
+                                                    </p>
+                                                )}
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {/* Faltaré Button */}
+                                                    <button
+                                                        onClick={() => handleSelectAttendance(cls, false)}
+                                                        disabled={markingAttendance}
+                                                        className={cn(
+                                                            "w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50",
+                                                            currentStatus === 'absent'
+                                                                ? "bg-red-600 text-white shadow-md border border-red-600"
+                                                                : currentStatus === 'present'
+                                                                    ? "bg-red-50/10 text-red-600/40 border border-red-100/30 opacity-60"
+                                                                    : "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
+                                                        )}
+                                                    >
+                                                        <X size={14} /> Faltaré
+                                                    </button>
+
+                                                    {/* Asistiré Button */}
+                                                    <button
+                                                        onClick={() => handleSelectAttendance(cls, true)}
+                                                        disabled={markingAttendance}
+                                                        className={cn(
+                                                            "w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50",
+                                                            currentStatus === 'present'
+                                                                ? "bg-green-600 text-white shadow-md border border-green-600"
+                                                                : currentStatus === 'absent'
+                                                                    ? "bg-[#2e2f43]/10 text-[#2e2f43]/40 border border-[#2e2f43]/10 opacity-60"
+                                                                    : "bg-[#2e2f43] text-white shadow-sm hover:bg-[#2e2f43]/90"
+                                                        )}
+                                                    >
+                                                        <CheckCircle size={14} /> Asistiré
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </GlassCard>
                         </div>
@@ -906,6 +977,95 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Confirm Modal */}
+        {confirmModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 max-w-sm w-full border border-gray-100 shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 -mt-6 -mr-6 w-24 h-24 bg-[#ffba15]/10 rounded-full blur-2xl" />
+              
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-[#ffba15]/10 text-[#ffba15] rounded-2xl">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-[#2e2f43] tracking-tight">
+                    Confirmar cambio
+                  </h3>
+                  <p className="text-xs text-[#2e2f43]/60 font-bold uppercase tracking-wider">
+                    {confirmModal.courseName}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-[#2e2f43]/70 font-medium mb-6 leading-relaxed">
+                Ya has registrado tu asistencia para esta clase. ¿Estás seguro de que deseas cambiar tu elección a <strong className="text-[#2e2f43]">{confirmModal.newStatus ? "Asistiré" : "Faltaré"}</strong>?
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmModal(null)}
+                  className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-[#2e2f43] font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    executeMarkAttendance(confirmModal.classId, confirmModal.newStatus);
+                    setConfirmModal(null);
+                  }}
+                  className="flex-1 py-3 bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Warning Modal */}
+        {warningModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 max-w-sm w-full border border-gray-100 shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 -mt-6 -mr-6 w-24 h-24 bg-red-500/10 rounded-full blur-2xl" />
+              
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-red-50 text-red-600 rounded-2xl">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-[#2e2f43] tracking-tight">
+                    {warningModal.title}
+                  </h3>
+                  <p className="text-xs text-[#2e2f43]/40 font-bold uppercase tracking-wider">
+                    Acción Limitada
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-[#2e2f43]/70 font-medium mb-6 leading-relaxed">
+                {warningModal.message}
+              </p>
+
+              <button
+                onClick={() => setWarningModal(null)}
+                className="w-full py-3 bg-[#2e2f43] hover:bg-[#2e2f43]/90 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all"
+              >
+                Entendido
+              </button>
             </motion.div>
           </div>
         )}
