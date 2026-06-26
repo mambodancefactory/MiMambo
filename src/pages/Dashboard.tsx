@@ -133,6 +133,34 @@ export default function Dashboard() {
         const courseData = courseSnap.data();
         const courseName = courseData.NombreCurso || `${courseData.Disciplina || ''} ${courseData.Estilo || ''}`.trim() || "Clase sin nombre";
 
+        // --- FETCH DICCIONARIOS MDF FOR LEVEL HIERARCHY ---
+        const dictRef = doc(db, 'Configuracion_Global', 'Diccionarios MDF');
+        const dictSnap = await getDoc(dictRef);
+        let nivelesJerarquia: Record<string, any> = {};
+        if (dictSnap.exists()) {
+            nivelesJerarquia = dictSnap.data().nivelesJerarquia || {};
+        }
+
+        const getLevelWeight = (levelName: string): number | null => {
+            if (!levelName) return null;
+            const normName = levelName.trim().toLowerCase();
+            for (const [key, val] of Object.entries(nivelesJerarquia)) {
+                if (key.toLowerCase() === normName) {
+                    return typeof val.peso === 'number' ? val.peso : Number(val.peso);
+                }
+            }
+            const defaultWeights: Record<string, number> = {
+                'básico': 0,
+                'basico': 0,
+                'iniciación': 1,
+                'iniciacion': 1,
+                'intermedio': 4,
+                'avanzado': 7,
+                'legendario': 10
+            };
+            return defaultWeights[normName] !== undefined ? defaultWeights[normName] : null;
+        };
+
         // --- RULE 1: Bolsa check ---
         const tickets = user.bolsaRecuperaciones || [];
         const unusedTickets = tickets.filter((t: any) => t.usado === false);
@@ -140,22 +168,58 @@ export default function Dashboard() {
             throw new Error("No tienes ningún ticket de recuperación disponible en tu bolsa (usado = false).");
         }
 
-        // --- RULE 2: Match Disciplina, Estilo, Modalidad, Nivel ---
-        const matchField = (val1: any, val2: any) => {
-            const s1 = val1 ? String(val1).trim().toLowerCase() : "";
-            const s2 = val2 ? String(val2).trim().toLowerCase() : "";
-            return s1 === s2;
-        };
+        // --- RULE 2: Match Disciplina, Estilo, Modalidad, Nivel (con jerarquía de pesos) ---
+        const compatibleTickets = unusedTickets.filter((t: any) => {
+            const ticketDisc = (t.disciplina || t.Disciplina || "").trim().toLowerCase();
+            const ticketEst = (t.estilo || t.Estilo || "").trim().toLowerCase();
+            const courseDisc = (courseData.Disciplina || "").trim().toLowerCase();
+            const courseEst = (courseData.Estilo || "").trim().toLowerCase();
+            const courseCombined = `${courseDisc} ${courseEst}`.trim();
 
-        const matchingTicket = unusedTickets.find((t: any) => {
-            const dMatch = matchField(t.disciplina || t.Disciplina, courseData.Disciplina);
-            const eMatch = matchField(t.estilo || t.Estilo, courseData.Estilo);
-            const mMatch = matchField(t.modalidad || t.Modalidad, courseData.Modalidad);
-            const nMatch = matchField(t.nivel || t.Nivel, courseData.Nivel);
-            return dMatch && eMatch && mMatch && nMatch;
+            const dMatch = (ticketDisc === courseCombined) ||
+                           (ticketDisc === courseDisc && (ticketEst === "" || ticketEst === courseEst));
+
+            const ticketMod = (t.modalidad || t.Modalidad || "").trim().toLowerCase();
+            const courseMod = (courseData.Modalidad || "").trim().toLowerCase();
+            const mMatch = ticketMod === courseMod;
+
+            const tLevel = t.nivel || t.Nivel;
+            const cLevel = courseData.Nivel;
+            const tWeight = getLevelWeight(tLevel);
+            const cWeight = getLevelWeight(cLevel);
+
+            let nMatch = false;
+            if (tWeight !== null && cWeight !== null) {
+                // El peso de la clase donde quiere recuperar (cWeight) debe ser igual o inferior al del ticket (tWeight)
+                nMatch = cWeight <= tWeight;
+            } else {
+                const s1 = tLevel ? String(tLevel).trim().toLowerCase() : "";
+                const s2 = cLevel ? String(cLevel).trim().toLowerCase() : "";
+                nMatch = s1 === s2;
+            }
+
+            return dMatch && mMatch && nMatch;
         });
 
-        if (!matchingTicket) {
+        const parseCaducidad = (caducidad: any): number => {
+            if (!caducidad) return Infinity;
+            if (typeof caducidad.toDate === 'function') {
+                return caducidad.toDate().getTime();
+            }
+            if (caducidad.seconds !== undefined) {
+                return caducidad.seconds * 1000;
+            }
+            if (caducidad._seconds !== undefined) {
+                return caducidad._seconds * 1000;
+            }
+            const dateParsed = Date.parse(caducidad);
+            if (!isNaN(dateParsed)) {
+                return dateParsed;
+            }
+            return Infinity;
+        };
+
+        if (compatibleTickets.length === 0) {
             throw new Error(
                 `No tienes ningún ticket compatible en tu bolsa. Esta clase requiere:\n` +
                 `• Disciplina: ${courseData.Disciplina || 'Cualquiera'}\n` +
@@ -164,6 +228,15 @@ export default function Dashboard() {
                 `• Nivel: ${courseData.Nivel || 'Cualquiera'}`
             );
         }
+
+        // Ordenar por caducidad más cercana a hoy primero
+        compatibleTickets.sort((a: any, b: any) => {
+            const timeA = parseCaducidad(a.caducidad);
+            const timeB = parseCaducidad(b.caducidad);
+            return timeA - timeB;
+        });
+
+        const matchingTicket = compatibleTickets[0];
 
         // --- RULE 3: Not already enrolled in coursesInscritos ---
         const getCursosInscritosArray = (cursosInscritos: any): any[] => {
