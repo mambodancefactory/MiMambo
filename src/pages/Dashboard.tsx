@@ -186,7 +186,14 @@ export default function Dashboard() {
             const tLevel = t.nivel || t.Nivel;
             const cLevel = courseData.Nivel;
             const tWeight = getLevelWeight(tLevel);
-            const cWeight = getLevelWeight(cLevel);
+            
+            // Obtener el peso directamente del documento de la clase, con fallback a Diccionarios MDF
+            let cWeight: number | null = null;
+            if (classData.peso !== undefined && classData.peso !== null) {
+                cWeight = typeof classData.peso === 'number' ? classData.peso : Number(classData.peso);
+            } else {
+                cWeight = getLevelWeight(cLevel);
+            }
 
             let nMatch = false;
             if (tWeight !== null && cWeight !== null) {

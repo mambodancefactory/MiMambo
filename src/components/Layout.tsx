@@ -12,12 +12,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen text-gray-800 font-sans pb-24 relative">
-      <div className={cn(
-        "fixed inset-0 pointer-events-none -z-10 transition-all duration-500",
-        isHome 
-          ? "bg-gradient-to-b from-[#e3f0fc] via-[#f5f9fc] to-[#ffffff]" 
-          : "bg-gradient-to-b from-white via-blue-50/30 to-purple-50/50"
-      )} />
+      <div className="fixed inset-0 pointer-events-none -z-10 bg-gradient-to-b from-white via-blue-50/30 to-purple-50/50" />
       <main className="max-w-md mx-auto px-4 pb-4 min-h-screen relative">
         <Outlet />
       </main>
