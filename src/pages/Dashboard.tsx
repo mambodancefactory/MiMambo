@@ -452,12 +452,12 @@ export default function Dashboard() {
                             className="absolute w-[85vw] max-w-[320px] h-[480px]"
                         >
                             <GlassCard className={cn(
-                                "relative overflow-hidden backdrop-blur-3xl rounded-3xl p-6 h-full flex flex-col justify-between transform-gpu transition-all duration-300",
-                                isActive ? "bg-white/95 border border-white shadow-[0_8px_32px_rgba(0,0,0,0.06)]" : "bg-white/40 border border-white/40 shadow-sm",
+                                "relative overflow-hidden rounded-3xl p-6 h-full flex flex-col justify-between transform-gpu transition-all duration-300",
+                                isActive ? "bg-white border border-white shadow-[0_12px_40px_rgba(0,0,0,0.1)]" : "bg-white border border-white shadow-sm",
                                 isMantenimiento ? 'opacity-70' : ''
                             )}>
                                 {isActive && (
-                                    <div className="absolute top-0 right-0 -mt-10 -mr-10 w-56 h-56 bg-[#ffba15]/10 rounded-full blur-3xl pointer-events-none" />
+                                    <div className="absolute top-0 right-0 -mt-10 -mr-10 w-56 h-56 bg-[#ffba15]/5 rounded-full blur-3xl pointer-events-none" />
                                 )}
                                 
                                 <div className="flex flex-col items-center text-center flex-1 w-full">
