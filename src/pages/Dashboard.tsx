@@ -390,7 +390,7 @@ export default function Dashboard() {
         {loading ? (
             <div className="h-64 mx-4 bg-[#2e2f43]/5 rounded-3xl animate-pulse"></div>
         ) : upcomingClasses && upcomingClasses.length > 0 ? (
-            <div className="relative h-[500px] w-full flex justify-center items-center px-4 overflow-hidden" style={{ perspective: 1000 }}>
+            <div className="relative h-[550px] w-full flex justify-center items-center px-4 overflow-hidden" style={{ perspective: 1000 }}>
                 <AnimatePresence initial={false}>
                 {upcomingClasses.map((cls, index) => {
                     const isMantenimiento = cls.estadoAsignacion === 'Mantenimiento';
@@ -449,58 +449,66 @@ export default function Dashboard() {
                                 zIndex
                             }}
                             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                            className="absolute w-[85vw] max-w-[320px] h-[440px]"
+                            className="absolute w-[85vw] max-w-[320px] h-[480px]"
                         >
-                            <div className="absolute inset-4 bg-[#2e2f43] rounded-3xl blur-xl opacity-[0.015]" />
-                            <GlassCard className={`relative overflow-hidden border border-white/80 backdrop-blur-3xl rounded-3xl p-6 shadow-[0_4px_18px_rgba(46,47,67,0.02),0_12px_36px_rgba(46,47,67,0.03)] h-full flex flex-col justify-between transform-gpu transition-all ${isMantenimiento ? 'bg-white/40' : 'bg-white/70'}`}>
-                                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-[#2e2f43]/5 rounded-full blur-3xl" />
+                            <GlassCard className={cn(
+                                "relative overflow-hidden backdrop-blur-3xl rounded-3xl p-6 h-full flex flex-col justify-between transform-gpu transition-all duration-300",
+                                isActive ? "bg-white/95 border border-white shadow-[0_8px_32px_rgba(0,0,0,0.06)]" : "bg-white/40 border border-white/40 shadow-sm",
+                                isMantenimiento ? 'opacity-70' : ''
+                            )}>
+                                {isActive && (
+                                    <div className="absolute top-0 right-0 -mt-10 -mr-10 w-56 h-56 bg-[#ffba15]/10 rounded-full blur-3xl pointer-events-none" />
+                                )}
                                 
-                                <div className={isMantenimiento ? 'opacity-70' : ''}>
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div className="space-y-1 w-full">
-                                            <span className="inline-block px-4 py-1.5 bg-[#2e2f43]/5 text-[#2e2f43] text-xs font-black rounded-full uppercase tracking-[0.2em] mb-2 shadow-sm">
-                                                {format(cls.startTime, "d 'de' MMMM", { locale: es })}
-                                            </span>
-                                            <div className="pt-2">
-                                                <h2 className="text-4xl font-black text-[#2e2f43] tracking-tighter leading-tight line-clamp-2">
-                                                    {cls.courseName}
-                                                </h2>
-                                                <div className="flex items-center gap-2 mt-4 flex-wrap">
-                                                    <p className="text-[#2e2f43]/60 font-black text-sm uppercase tracking-widest px-2 py-1 bg-white/50 rounded-md border border-white">
-                                                        {cls.level}
-                                                    </p>
-                                                    {cls.rol && (
-                                                        <span className={`text-[10px] font-extrabold px-3 py-1 rounded-md border uppercase tracking-wider ${
-                                                            cls.rol.toLowerCase() === 'leader' 
-                                                            ? 'bg-blue-50/50 text-blue-600 border-blue-100' 
-                                                            : 'bg-pink-50/50 text-pink-600 border-pink-100'
-                                                        }`}>
-                                                            {cls.rol === 'leader' ? 'Leader' : 'Follower'}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                <div className="flex flex-col items-center text-center flex-1 w-full">
+                                    <div className="flex flex-col items-center mb-6 w-full mt-2">
+                                        <span className="inline-block px-4 py-1.5 bg-[#2e2f43]/5 text-[#2e2f43] text-[10px] font-black rounded-full uppercase tracking-[0.2em] mb-4 shadow-sm">
+                                            {format(cls.startTime, "d 'de' MMMM", { locale: es })}
+                                        </span>
+                                        
+                                        {cls.courseImage && (
+                                            <div className="w-28 h-28 rounded-full overflow-hidden mb-4 shadow-[0_8px_16px_rgb(0,0,0,0.1)] border-[3px] border-white">
+                                                <img 
+                                                    src={cls.courseImage} 
+                                                    alt={cls.courseName} 
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </div>
+                                        )}
+                                        
+                                        <h2 className="text-3xl font-black text-[#2e2f43] tracking-tight leading-tight line-clamp-2 px-2">
+                                            {cls.courseName}
+                                        </h2>
+                                        
+                                        <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+                                            <p className="text-[#2e2f43]/60 font-black text-[10px] uppercase tracking-widest px-2.5 py-1 bg-white/60 rounded-lg border border-white/40">
+                                                {cls.level}
+                                            </p>
+                                            {cls.rol && (
+                                                <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border uppercase tracking-widest ${
+                                                    cls.rol.toLowerCase() === 'leader' 
+                                                    ? 'bg-blue-50/60 text-blue-600 border-blue-100/50' 
+                                                    : 'bg-pink-50/60 text-pink-600 border-pink-100/50'
+                                                }`}>
+                                                    {cls.rol === 'leader' ? 'Leader' : 'Follower'}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                     
-                                    <div className="flex flex-col gap-3 mt-4 mb-6 relative z-10">
-                                        <div className="bg-white/80 p-4 rounded-2xl border border-white shadow-sm flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-2 bg-[#2e2f43]/5 rounded-xl">
-                                                    <Clock size={16} className="text-[#2e2f43]" />
-                                                </div>
-                                                <span className="text-[10px] font-black text-[#2e2f43]/40 uppercase tracking-widest">
-                                                    {format(cls.startTime, 'EEEE', { locale: es })}
-                                                </span>
-                                            </div>
-                                            <p className="font-black text-[#2e2f43] text-xl">
+                                    <div className="flex flex-col gap-3 mt-auto mb-2 relative z-10 w-full">
+                                        <div className="bg-white/60 p-4 rounded-2xl border border-white/60 shadow-sm flex flex-col items-center justify-center backdrop-blur-md">
+                                            <span className="text-[9px] font-black text-[#2e2f43]/40 uppercase tracking-widest mb-1">
+                                                {format(cls.startTime, 'EEEE', { locale: es })}
+                                            </span>
+                                            <p className="font-black text-[#2e2f43] text-2xl leading-none">
                                                 {format(cls.startTime, "HH:mm", { locale: es })}
                                             </p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="mt-auto pt-4 relative z-10">
+                                <div className="pt-2 relative z-10 w-full mt-2">
                                     {(() => {
                                         const currentStatus = localAttendanceStates[cls.id] || cls.attendanceStatus || 'none';
                                         

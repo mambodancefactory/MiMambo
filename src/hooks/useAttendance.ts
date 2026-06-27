@@ -36,6 +36,7 @@ export interface NextClass {
   asistenciaCerrada?: boolean;
   attendanceStatus?: 'present' | 'absent' | 'none';
   estadoAsignacion?: string | null;
+  courseImage?: string | null;
 }
 
 interface Event {
@@ -472,7 +473,8 @@ export function useAttendance() {
                         rol: rol,
                         asistenciaCerrada: next.AsistenciaCerrada === true || next.AsistenciaCerrada === 'true',
                         attendanceStatus: attendanceStatus,
-                        estadoAsignacion: estadoAsignacion
+                        estadoAsignacion: estadoAsignacion,
+                        courseImage: course.ImagenCurso || null
                     };
                 }
                 return null;
