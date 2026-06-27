@@ -497,13 +497,14 @@ export default function Dashboard() {
                                     </div>
                                     
                                     <div className="flex flex-col gap-3 mt-auto mb-2 relative z-10 w-full">
-                                        <div className="bg-white/60 p-4 rounded-2xl border border-white/60 shadow-sm flex flex-col items-center justify-center backdrop-blur-md">
-                                            <span className="text-[9px] font-black text-[#2e2f43]/40 uppercase tracking-widest mb-1">
+                                        <div className="bg-white/60 py-2.5 px-4 rounded-full border border-white/60 shadow-sm flex items-center justify-center gap-2 backdrop-blur-md">
+                                            <span className="text-[10px] font-black text-[#2e2f43]/50 uppercase tracking-widest">
                                                 {format(cls.startTime, 'EEEE', { locale: es })}
                                             </span>
-                                            <p className="font-black text-[#2e2f43] text-2xl leading-none">
+                                            <span className="text-[#2e2f43]/30 font-black text-xs">•</span>
+                                            <span className="font-black text-[#2e2f43] text-sm">
                                                 {format(cls.startTime, "HH:mm", { locale: es })}
-                                            </p>
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
