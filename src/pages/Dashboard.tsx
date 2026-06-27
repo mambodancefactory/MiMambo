@@ -390,8 +390,9 @@ export default function Dashboard() {
         {loading ? (
             <div className="h-64 mx-4 bg-[#2e2f43]/5 rounded-3xl animate-pulse"></div>
         ) : upcomingClasses && upcomingClasses.length > 0 ? (
-            <div className="relative h-[480px] w-full flex justify-center items-center px-4 overflow-hidden" style={{ perspective: 1000 }}>
-                <AnimatePresence initial={false}>
+            <>
+                <div className="relative h-[480px] w-full flex justify-center items-center px-4 overflow-hidden" style={{ perspective: 1000 }}>
+                    <AnimatePresence initial={false}>
                 {upcomingClasses.map((cls, index) => {
                     const isMantenimiento = cls.estadoAsignacion === 'Mantenimiento';
                     const isClosed = cls.asistenciaCerrada;
@@ -423,10 +424,11 @@ export default function Dashboard() {
                     return (
                         <motion.div 
                             key={cls.id} 
-                            drag={isActive ? "x" : false}
+                            drag="x"
                             style={{ 
-                                pointerEvents: isActive ? 'auto' : 'none',
-                                touchAction: 'pan-y'
+                                touchAction: 'pan-y',
+                                cursor: isActive ? 'grab' : 'pointer',
+                                zIndex
                             }}
                             dragConstraints={{ left: 0, right: 0 }}
                             dragElastic={0.2}
@@ -438,6 +440,11 @@ export default function Dashboard() {
                                     setActiveClassIndex(prev => prev + 1);
                                 } else if ((swipe > 30 || swipeVelocity > 300) && activeClassIndex > 0) {
                                     setActiveClassIndex(prev => prev - 1);
+                                }
+                            }}
+                            onTap={() => {
+                                if (!isActive) {
+                                    setActiveClassIndex(index);
                                 }
                             }}
                             initial={false}
@@ -575,7 +582,25 @@ export default function Dashboard() {
                     );
                 })}
                 </AnimatePresence>
-            </div>
+                </div>
+                {upcomingClasses.length > 1 && (
+                    <div className="flex justify-center gap-2 mt-3 mb-1">
+                        {upcomingClasses.map((_, i) => (
+                            <button
+                                key={i}
+                                onClick={() => setActiveClassIndex(i)}
+                                className={cn(
+                                    "h-1.5 rounded-full transition-all duration-300",
+                                    i === activeClassIndex 
+                                        ? "w-6 bg-[#2e2f43]" 
+                                        : "w-1.5 bg-[#2e2f43]/15 hover:bg-[#2e2f43]/35"
+                                )}
+                                aria-label={`Ir a clase ${i + 1}`}
+                            />
+                        ))}
+                    </div>
+                )}
+            </>
         ) : (
             <GlassCard className="p-8 text-center bg-white/40 border-white/40 rounded-2xl shadow-sm">
                 <p className="text-sm text-[#2e2f43]/40 font-bold">
