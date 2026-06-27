@@ -390,9 +390,8 @@ export default function Dashboard() {
         {loading ? (
             <div className="h-64 mx-4 bg-[#2e2f43]/5 rounded-3xl animate-pulse"></div>
         ) : upcomingClasses && upcomingClasses.length > 0 ? (
-            <>
-                <div className="relative h-[480px] w-full flex justify-center items-center px-4 overflow-hidden" style={{ perspective: 1000 }}>
-                    <AnimatePresence initial={false}>
+            <div className="relative h-[500px] w-full flex justify-center items-center px-4 overflow-hidden" style={{ perspective: 1000 }}>
+                <AnimatePresence initial={false}>
                 {upcomingClasses.map((cls, index) => {
                     const isMantenimiento = cls.estadoAsignacion === 'Mantenimiento';
                     const isClosed = cls.asistenciaCerrada;
@@ -424,11 +423,10 @@ export default function Dashboard() {
                     return (
                         <motion.div 
                             key={cls.id} 
-                            drag="x"
+                            drag={isActive ? "x" : false}
                             style={{ 
-                                touchAction: 'pan-y',
-                                cursor: isActive ? 'grab' : 'pointer',
-                                zIndex
+                                pointerEvents: isActive ? 'auto' : 'none',
+                                touchAction: 'pan-y'
                             }}
                             dragConstraints={{ left: 0, right: 0 }}
                             dragElastic={0.2}
@@ -442,11 +440,6 @@ export default function Dashboard() {
                                     setActiveClassIndex(prev => prev - 1);
                                 }
                             }}
-                            onTap={() => {
-                                if (!isActive) {
-                                    setActiveClassIndex(index);
-                                }
-                            }}
                             initial={false}
                             animate={{
                                 x,
@@ -458,8 +451,8 @@ export default function Dashboard() {
                             transition={{ type: "spring", stiffness: 300, damping: 30 }}
                             className="absolute w-[85vw] max-w-[320px] h-[440px]"
                         >
-                            <div className="absolute inset-0 bg-[#2e2f43] rounded-3xl blur-xl opacity-[0.03]" />
-                            <GlassCard className={`relative overflow-hidden border border-white/80 backdrop-blur-3xl rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.08),-10px_0_20px_rgb(0,0,0,0.05)] h-full flex flex-col justify-between transform-gpu transition-all ${isMantenimiento ? 'bg-white/40' : 'bg-white/70'}`}>
+                            <div className="absolute inset-4 bg-[#2e2f43] rounded-3xl blur-xl opacity-[0.015]" />
+                            <GlassCard className={`relative overflow-hidden border border-white/80 backdrop-blur-3xl rounded-3xl p-6 shadow-[0_4px_18px_rgba(46,47,67,0.02),0_12px_36px_rgba(46,47,67,0.03)] h-full flex flex-col justify-between transform-gpu transition-all ${isMantenimiento ? 'bg-white/40' : 'bg-white/70'}`}>
                                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-[#2e2f43]/5 rounded-full blur-3xl" />
                                 
                                 <div className={isMantenimiento ? 'opacity-70' : ''}>
@@ -582,25 +575,7 @@ export default function Dashboard() {
                     );
                 })}
                 </AnimatePresence>
-                </div>
-                {upcomingClasses.length > 1 && (
-                    <div className="flex justify-center gap-2 mt-3 mb-1">
-                        {upcomingClasses.map((_, i) => (
-                            <button
-                                key={i}
-                                onClick={() => setActiveClassIndex(i)}
-                                className={cn(
-                                    "h-1.5 rounded-full transition-all duration-300",
-                                    i === activeClassIndex 
-                                        ? "w-6 bg-[#2e2f43]" 
-                                        : "w-1.5 bg-[#2e2f43]/15 hover:bg-[#2e2f43]/35"
-                                )}
-                                aria-label={`Ir a clase ${i + 1}`}
-                            />
-                        ))}
-                    </div>
-                )}
-            </>
+            </div>
         ) : (
             <GlassCard className="p-8 text-center bg-white/40 border-white/40 rounded-2xl shadow-sm">
                 <p className="text-sm text-[#2e2f43]/40 font-bold">
