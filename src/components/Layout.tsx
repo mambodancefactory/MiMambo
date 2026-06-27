@@ -69,12 +69,12 @@ function BottomDock() {
 
           {/* Central Prominent Button for ID Card */}
           <div className="relative flex justify-center w-20">
-            <div className="absolute -top-6">
+            <div className="absolute -top-8">
               <button 
-                className="w-[60px] h-[60px] bg-[#2e2f43] rounded-full flex items-center justify-center text-yellow-400 shadow-xl shadow-[#2e2f43]/20 border-[6px] border-white transform transition-transform hover:scale-105 active:scale-95"
+                className="w-16 h-16 bg-[#2e2f43] rounded-full flex items-center justify-center text-yellow-400 shadow-[0_8px_30px_rgb(46,47,67,0.3)] border-[4px] border-white transform transition-transform hover:-translate-y-1 active:scale-95"
                 onClick={() => setIsIdModalOpen(true)}
               >
-                <Sparkles size={26} strokeWidth={2.5} className="fill-yellow-400 text-yellow-400" />
+                <IdCard size={28} strokeWidth={2.5} className="text-yellow-400" />
               </button>
             </div>
           </div>

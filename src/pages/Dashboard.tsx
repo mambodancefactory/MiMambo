@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/context/AuthContext';
 import { useAttendance } from '@/hooks/useAttendance';
@@ -33,6 +33,15 @@ export default function Dashboard() {
   const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
   const [showEmptySlotInfo, setShowEmptySlotInfo] = useState<boolean>(false);
   const [showRequirements, setShowRequirements] = useState<boolean>(false);
+
+  const [activeClassIndex, setActiveClassIndex] = useState(-1);
+
+  useEffect(() => {
+    if (upcomingClasses && upcomingClasses.length > 0 && activeClassIndex === -1) {
+      const firstOpenIndex = upcomingClasses.findIndex(c => !c.asistenciaCerrada && c.estadoAsignacion !== 'Mantenimiento');
+      setActiveClassIndex(firstOpenIndex >= 0 ? firstOpenIndex : 0);
+    }
+  }, [upcomingClasses, activeClassIndex]);
 
   const [localAttendanceStates, setLocalAttendanceStates] = useState<Record<string, 'present' | 'absent'>>({});
   const [confirmModal, setConfirmModal] = useState<{
@@ -375,43 +384,96 @@ export default function Dashboard() {
       />
 
       {/* 1 - Upcoming Classes Slider */}
-      <div className="space-y-3">
-        <h3 className="text-xs font-bold px-2 text-[#2e2f43]/60 uppercase tracking-wider">Próximas Clases</h3>
+      <div className="space-y-3 relative z-10">
+        <h3 className="text-xs font-bold px-4 text-[#2e2f43]/60 uppercase tracking-wider">Tus clases de esta semana</h3>
         
         {loading ? (
-            <div className="h-48 w-full bg-[#2e2f43]/5 rounded-2xl animate-pulse"></div>
+            <div className="h-64 mx-4 bg-[#2e2f43]/5 rounded-3xl animate-pulse"></div>
         ) : upcomingClasses && upcomingClasses.length > 0 ? (
-            <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-4 pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {upcomingClasses.map((cls) => {
-                    const hoursUntilClass = differenceInHours(cls.startTime, new Date());
-                    const canMarkAttendance = true; // Permitting always if not closed: cls.asistenciaCerrada === false
+            <div className="relative h-[480px] w-full flex justify-center items-center px-4 overflow-hidden" style={{ perspective: 1000 }}>
+                <AnimatePresence initial={false}>
+                {upcomingClasses.map((cls, index) => {
+                    const isMantenimiento = cls.estadoAsignacion === 'Mantenimiento';
                     const isClosed = cls.asistenciaCerrada;
                     
+                    const offset = index - activeClassIndex;
+                    const isVisible = Math.abs(offset) <= 2;
+                    if (!isVisible) return null;
+
+                    const isActive = offset === 0;
+
+                    let x = 0;
+                    let scale = 1;
+                    let rotate = 0;
+                    let opacity = 1;
+                    let zIndex = upcomingClasses.length - Math.abs(offset);
+                    
+                    if (offset < 0) {
+                        x = -35 * Math.abs(offset);
+                        scale = 1 - 0.05 * Math.abs(offset);
+                        rotate = -4 * Math.abs(offset);
+                        opacity = 1 - 0.2 * Math.abs(offset);
+                    } else if (offset > 0) {
+                        x = 35 * offset;
+                        scale = 1 - 0.05 * offset;
+                        rotate = 4 * offset;
+                        opacity = 1 - 0.2 * offset;
+                    }
+
                     return (
-                        <div key={cls.id} className="min-w-[90%] snap-center shrink-0 relative group">
-                            <div className="absolute inset-0 bg-[#2e2f43] rounded-2xl blur-xl opacity-2 transition-opacity" />
-                            <GlassCard className="relative overflow-hidden border-white/40 bg-white/40 backdrop-blur-2xl rounded-2xl p-6 shadow-sm h-full flex flex-col justify-between">
-                                <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-[#2e2f43]/5 rounded-full blur-3xl" />
+                        <motion.div 
+                            key={cls.id} 
+                            drag={isActive ? "x" : false}
+                            style={{ 
+                                pointerEvents: isActive ? 'auto' : 'none',
+                                touchAction: 'pan-y'
+                            }}
+                            dragConstraints={{ left: 0, right: 0 }}
+                            dragElastic={0.2}
+                            onDragEnd={(e, { offset: dragOffset, velocity }) => {
+                                const swipe = dragOffset.x;
+                                const swipeVelocity = velocity.x;
                                 
-                                <div>
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="space-y-1">
-                                            <span className="px-3 py-1 bg-[#2e2f43]/5 text-[#2e2f43] text-[10px] font-black rounded-full uppercase tracking-[0.2em]">
-                                                {format(cls.startTime, 'EEEE', { locale: es })}
+                                if ((swipe < -30 || swipeVelocity < -300) && activeClassIndex < upcomingClasses.length - 1) {
+                                    setActiveClassIndex(prev => prev + 1);
+                                } else if ((swipe > 30 || swipeVelocity > 300) && activeClassIndex > 0) {
+                                    setActiveClassIndex(prev => prev - 1);
+                                }
+                            }}
+                            initial={false}
+                            animate={{
+                                x,
+                                scale,
+                                rotate,
+                                opacity,
+                                zIndex
+                            }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            className="absolute w-[85vw] max-w-[320px] h-[440px]"
+                        >
+                            <div className="absolute inset-0 bg-[#2e2f43] rounded-3xl blur-xl opacity-[0.03]" />
+                            <GlassCard className={`relative overflow-hidden border border-white/80 backdrop-blur-3xl rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.08),-10px_0_20px_rgb(0,0,0,0.05)] h-full flex flex-col justify-between transform-gpu transition-all ${isMantenimiento ? 'bg-white/40' : 'bg-white/70'}`}>
+                                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-[#2e2f43]/5 rounded-full blur-3xl" />
+                                
+                                <div className={isMantenimiento ? 'opacity-70' : ''}>
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="space-y-1 w-full">
+                                            <span className="inline-block px-4 py-1.5 bg-[#2e2f43]/5 text-[#2e2f43] text-xs font-black rounded-full uppercase tracking-[0.2em] mb-2 shadow-sm">
+                                                {format(cls.startTime, "d 'de' MMMM", { locale: es })}
                                             </span>
                                             <div className="pt-2">
-                                                <h2 className="text-2xl font-black text-[#2e2f43] tracking-tighter leading-none line-clamp-2">
+                                                <h2 className="text-4xl font-black text-[#2e2f43] tracking-tighter leading-tight line-clamp-2">
                                                     {cls.courseName}
                                                 </h2>
-                                                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                                    <p className="text-[#2e2f43]/60 font-bold text-[10px] uppercase tracking-wider">
+                                                <div className="flex items-center gap-2 mt-4 flex-wrap">
+                                                    <p className="text-[#2e2f43]/60 font-black text-sm uppercase tracking-widest px-2 py-1 bg-white/50 rounded-md border border-white">
                                                         {cls.level}
                                                     </p>
                                                     {cls.rol && (
-                                                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                                        <span className={`text-[10px] font-extrabold px-3 py-1 rounded-md border uppercase tracking-wider ${
                                                             cls.rol.toLowerCase() === 'leader' 
-                                                            ? 'bg-blue-50 text-blue-600 border border-blue-100/30' 
-                                                            : 'bg-pink-50 text-pink-600 border border-pink-100/30'
+                                                            ? 'bg-blue-50/50 text-blue-600 border-blue-100' 
+                                                            : 'bg-pink-50/50 text-pink-600 border-pink-100'
                                                         }`}>
                                                             {cls.rol === 'leader' ? 'Leader' : 'Follower'}
                                                         </span>
@@ -419,42 +481,56 @@ export default function Dashboard() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="bg-[#2e2f43] p-3 rounded-2xl shadow-sm shrink-0">
-                                            <Calendar className="text-white" size={20} />
-                                        </div>
                                     </div>
                                     
-                                    <div className="grid grid-cols-2 gap-3 mt-4 mb-4">
-                                        <div className="bg-white/50 p-3 rounded-xl border border-white/60 shadow-sm">
-                                            <div className="flex items-center gap-1.5 mb-1">
-                                                <Clock size={12} className="text-[#2e2f43]/40" />
-                                                <span className="text-[9px] font-black text-[#2e2f43]/40 uppercase tracking-widest">Horario</span>
+                                    <div className="flex flex-col gap-3 mt-4 mb-6 relative z-10">
+                                        <div className="bg-white/80 p-4 rounded-2xl border border-white shadow-sm flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-2 bg-[#2e2f43]/5 rounded-xl">
+                                                    <Clock size={16} className="text-[#2e2f43]" />
+                                                </div>
+                                                <span className="text-[10px] font-black text-[#2e2f43]/40 uppercase tracking-widest">
+                                                    {format(cls.startTime, 'EEEE', { locale: es })}
+                                                </span>
                                             </div>
-                                            <p className="font-black text-[#2e2f43] capitalize text-xs">
+                                            <p className="font-black text-[#2e2f43] text-xl">
                                                 {format(cls.startTime, "HH:mm", { locale: es })}
                                             </p>
-                                        </div>
-                                        <div className="bg-white/50 p-3 rounded-xl border border-white/60 shadow-sm">
-                                            <div className="flex items-center gap-1.5 mb-1">
-                                                <MapPin size={12} className="text-[#2e2f43]/40" />
-                                                <span className="text-[9px] font-black text-[#2e2f43]/40 uppercase tracking-widest">Ubicación</span>
-                                            </div>
-                                            <p className="font-black text-[#2e2f43] text-xs truncate">{cls.location}</p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div>
+                                <div className="mt-auto pt-4 relative z-10">
                                     {(() => {
                                         const currentStatus = localAttendanceStates[cls.id] || cls.attendanceStatus || 'none';
-                                        const hasStarted = new Date() >= cls.startTime;
-                                        const isClosedOrStarted = isClosed || hasStarted;
+                                        
+                                        if (isMantenimiento) {
+                                            return (
+                                                <div className="w-full py-3 bg-[#2e2f43]/5 border border-[#2e2f43]/10 text-[#2e2f43]/60 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center">
+                                                    En mantenimiento
+                                                </div>
+                                            );
+                                        }
 
+                                        if (isClosed) {
+                                            return (
+                                                <div className={cn(
+                                                    "w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-1.5 shadow-sm border",
+                                                    currentStatus === 'present' 
+                                                        ? "bg-green-50 text-green-700 border-green-200" 
+                                                        : "bg-red-50 text-red-700 border-red-200"
+                                                )}>
+                                                    {currentStatus === 'present' ? "Clase realizada" : "Falta de asistencia"}
+                                                </div>
+                                            );
+                                        }
+
+                                        const hasStarted = new Date() >= cls.startTime;
                                         return (
                                             <div className="space-y-2 mt-auto">
-                                                {isClosedOrStarted && (
+                                                {hasStarted && (
                                                     <p className="text-[9px] font-bold text-center text-[#2e2f43]/40 uppercase tracking-wider">
-                                                        {isClosed ? "Asistencia Cerrada por la Academia" : "La clase ya ha comenzado"}
+                                                        La clase ya ha comenzado
                                                     </p>
                                                 )}
                                                 <div className="grid grid-cols-2 gap-2">
@@ -495,9 +571,10 @@ export default function Dashboard() {
                                     })()}
                                 </div>
                             </GlassCard>
-                        </div>
+                        </motion.div>
                     );
                 })}
+                </AnimatePresence>
             </div>
         ) : (
             <GlassCard className="p-8 text-center bg-white/40 border-white/40 rounded-2xl shadow-sm">

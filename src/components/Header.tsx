@@ -153,6 +153,33 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
     fetchAllNotifications();
   }, [user]);
 
+  useEffect(() => {
+    if (showNotifications && user && notifications.length > 0) {
+      const markAsRead = async () => {
+        const unreadNotifs = notifications.filter(n => n.data?.leidoAlumno === false);
+        for (const notif of unreadNotifs) {
+          try {
+            let colName = '';
+            if (notif.type === 'vinculacion') {
+              colName = 'Solicitudes_Vinculacion';
+            } else if (notif.type === 'curso') {
+              colName = 'Solicitudes_Cursos_Adicionales';
+            } else if (notif.type === 'estado') {
+              colName = 'Solicitudes_Cambio_Estado';
+            }
+            if (colName) {
+              const docRef = doc(db, colName, notif.id);
+              await updateDoc(docRef, { leidoAlumno: true });
+            }
+          } catch (e) {
+            console.error("Error marking notification as read:", e);
+          }
+        }
+      };
+      markAsRead();
+    }
+  }, [showNotifications, notifications, user]);
+
   const handleResponse = async (notificationId: string, accept: boolean) => {
     try {
       const notifRef = doc(db, 'Solicitudes_Vinculacion', notificationId);
@@ -208,7 +235,10 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
     }
   };
 
-  const pendingCount = notifications.filter(n => n.status === 'Pendiente').length;
+  const pendingCount = notifications.filter(n => 
+    n.data?.leidoAlumno === false || 
+    (n.type === 'vinculacion' && n.data?.ID_Destino === user?.ID_Alumno && n.status === 'Pendiente' && n.data?.leidoAlumno !== true)
+  ).length;
 
   return (
     <>
@@ -373,6 +403,17 @@ export function Header({ title, showGreeting = false, rightElement }: HeaderProp
                                                     {notif.data.EstadoSolicitado}
                                                 </span>
                                             </div>
+                                        </div>
+                                    )}
+
+                                    {notif.data.ObservacionesRechazo && (
+                                        <div className="mt-3 bg-[#2e2f43]/5 border border-[#2e2f43]/10 rounded-xl p-3">
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-[#2e2f43]/60 mb-0.5">
+                                                Respuesta de Mambo
+                                            </p>
+                                            <p className="text-xs font-semibold text-[#2e2f43] leading-relaxed">
+                                                {notif.data.ObservacionesRechazo}
+                                            </p>
                                         </div>
                                     )}
 

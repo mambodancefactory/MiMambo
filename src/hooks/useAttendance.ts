@@ -35,6 +35,7 @@ export interface NextClass {
   rol?: string | null;
   asistenciaCerrada?: boolean;
   attendanceStatus?: 'present' | 'absent' | 'none';
+  estadoAsignacion?: string | null;
 }
 
 interface Event {
@@ -458,18 +459,20 @@ export function useAttendance() {
                     const cursosInscritosArr = getCursosInscritosArray(user.cursosInscritos);
                     const inscrito = cursosInscritosArr.find((c: any) => (c.id || c.ID_Curso) === next.ID_Curso);
                     const rol = inscrito?.rol || inscrito?.Rol || null;
+                    const estadoAsignacion = inscrito?.EstadoAsignacion || inscrito?.estadoAsignacion || null;
 
                     return {
                         id: next.id,
                         courseName: [course.Disciplina, course.Estilo].filter(Boolean).join(' '),
-                        level: [course.Modalidad, [course.Nivel, course.Subnivel].filter(Boolean).join(' - ')].filter(Boolean).join(' • '),
+                        level: [course.Nivel, course.Subnivel].filter(Boolean).join(' '),
                         startTime: new Date(year, month - 1, day, startH, startM),
                         endTime: new Date(year, month - 1, day, endH, endM),
                         location: course.Ubicacion || 'Sala Principal',
                         attendanceMarked: attendanceMarked,
                         rol: rol,
                         asistenciaCerrada: next.AsistenciaCerrada === true || next.AsistenciaCerrada === 'true',
-                        attendanceStatus: attendanceStatus
+                        attendanceStatus: attendanceStatus,
+                        estadoAsignacion: estadoAsignacion
                     };
                 }
                 return null;
