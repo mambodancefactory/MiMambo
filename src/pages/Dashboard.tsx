@@ -384,13 +384,37 @@ export default function Dashboard() {
       />
 
       {/* 1 - Upcoming Classes Slider */}
-      <div className="space-y-3 relative z-10">
-        <h3 className="text-xs font-bold px-4 text-[#2e2f43]/60 uppercase tracking-wider">Tus clases de esta semana</h3>
+      <div className="relative z-10 -mx-4 -mt-6 bg-[#2e2f43] rounded-b-[40px] pt-6 pb-8 shadow-[0_20px_40px_rgba(46,47,67,0.18)] overflow-hidden">
+        {/* Ambient elements inside dark container */}
+        <div className="absolute inset-0 bg-radial-gradient from-white/[0.02] to-transparent pointer-events-none" />
+        <div className="absolute -top-40 -left-40 w-80 h-80 bg-[#ffba15]/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-white/5 rounded-full blur-[100px] pointer-events-none" />
+
+        {/* Title inside the container */}
+        <div className="text-center px-6 mb-6 relative z-10">
+          <p className="text-[#ffba15] text-[10px] font-black uppercase tracking-[0.2em] mb-1">
+            Tus clases de esta semana
+          </p>
+          <h2 className="text-xl font-black text-white tracking-tight">
+            {loading ? (
+              <span className="opacity-50">Cargando tus clases...</span>
+            ) : upcomingClasses && upcomingClasses.length > 0 ? (
+              upcomingClasses.length === 1 
+                ? "Tienes 1 clase esta semana" 
+                : `Tienes ${upcomingClasses.length} clases esta semana`
+            ) : (
+              "No tienes clases esta semana"
+            )}
+          </h2>
+        </div>
         
         {loading ? (
-            <div className="h-64 mx-4 bg-[#2e2f43]/5 rounded-3xl animate-pulse"></div>
+            <div className="h-[550px] mx-8 bg-white/5 rounded-[32px] animate-pulse flex flex-col items-center justify-center">
+                <Loader2 className="text-[#ffba15] animate-spin mb-3" size={32} />
+                <p className="text-white/40 text-xs font-bold">Cargando agenda...</p>
+            </div>
         ) : upcomingClasses && upcomingClasses.length > 0 ? (
-            <div className="relative h-[550px] w-full flex justify-center items-center px-4 overflow-hidden" style={{ perspective: 1000 }}>
+            <div className="relative h-[550px] w-full flex justify-center items-center overflow-hidden" style={{ perspective: 1000 }}>
                 <AnimatePresence initial={false}>
                 {upcomingClasses.map((cls, index) => {
                     const isMantenimiento = cls.estadoAsignacion === 'Mantenimiento';
@@ -453,11 +477,11 @@ export default function Dashboard() {
                         >
                             <GlassCard className={cn(
                                 "relative overflow-hidden rounded-3xl p-6 h-full flex flex-col justify-between transform-gpu transition-all duration-300",
-                                isActive ? "bg-white border border-white shadow-[0_12px_40px_rgba(0,0,0,0.1)]" : "bg-white border border-white shadow-sm",
+                                isActive ? "bg-white border border-white shadow-[0_24px_48px_rgba(0,0,0,0.22)] scale-100" : "bg-white/30 border border-white/10 shadow-sm scale-95 opacity-60 backdrop-blur-md",
                                 isMantenimiento ? 'opacity-70' : ''
                             )}>
                                 {isActive && (
-                                    <div className="absolute top-0 right-0 -mt-10 -mr-10 w-56 h-56 bg-[#ffba15]/5 rounded-full blur-3xl pointer-events-none" />
+                                    <div className="absolute top-0 right-0 -mt-10 -mr-10 w-56 h-56 bg-[#ffba15]/5 rounded-full blur-3xl pointer-events-none animate-pulse" />
                                 )}
                                 
                                 <div className="flex flex-col items-center text-center flex-1 w-full">
@@ -586,11 +610,14 @@ export default function Dashboard() {
                 </AnimatePresence>
             </div>
         ) : (
-            <GlassCard className="p-8 text-center bg-white/40 border-white/40 rounded-2xl shadow-sm">
-                <p className="text-sm text-[#2e2f43]/40 font-bold">
+            <div className="mx-6 py-12 text-center relative z-10">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center border border-white/10 text-white/30">
+                    <Calendar size={28} />
+                </div>
+                <p className="text-sm text-white/50 font-bold max-w-xs mx-auto">
                     No tienes clases programadas esta semana.
                 </p>
-            </GlassCard>
+            </div>
         )}
       </div>
 
