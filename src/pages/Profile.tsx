@@ -160,47 +160,61 @@ export default function Profile() {
       reader.readAsDataURL(file);
       
       reader.onload = async () => {
-        const base64Data = (reader.result as string).split(',')[1];
+        try {
+          const base64Data = (reader.result as string).split(',')[1];
 
-        const formData = new FormData();
-        formData.append('data', base64Data);
-        formData.append('mimeType', file.type);
-        formData.append('filename', `${user.ID_Alumno}_${Date.now()}.jpg`);
+          // Use URLSearchParams (application/x-www-form-urlencoded) to avoid CORS preflight issues with Google Apps Script doPost parameters
+          const params = new URLSearchParams();
+          params.append('data', base64Data);
+          params.append('mimeType', file.type);
+          params.append('filename', `${user.ID_Alumno}_${Date.now()}.jpg`);
 
-        const response = await fetch(scriptUrl, {
-          method: 'POST',
-          body: formData,
-        });
-
-        const result = await response.json();
-
-        if (result.status === 'success') {
-          const fileIdMatch = result.url.match(/\/d\/(.+)$/);
-          const fileId = fileIdMatch ? fileIdMatch[1] : null;
-          let finalUrl = result.url;
-          if (fileId) {
-             finalUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
-          }
-
-          const userRef = doc(db, 'Alumnos', user.ID_Alumno);
-          await updateDoc(userRef, {
-            Foto_Alumno: finalUrl
+          const response = await fetch(scriptUrl, {
+            method: 'POST',
+            body: params,
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
           });
 
-          const updatedUser = { ...user, Foto_Alumno: finalUrl };
-          localStorage.setItem('mi_mambo_user', JSON.stringify(updatedUser));
+          if (!response.ok) {
+            throw new Error(`Error de servidor HTTP: ${response.status}`);
+          }
 
-          alert('Foto de perfil actualizada correctamente.');
-          window.location.reload();
-        } else {
-          throw new Error(result.message || 'Error en el script de subida');
+          const result = await response.json();
+
+          if (result.status === 'success') {
+            const fileIdMatch = result.url.match(/\/d\/([^/?#&]+)/) || result.url.match(/\/d\/(.+)$/) || result.url.match(/id=([^/?#&]+)/);
+            const fileId = fileIdMatch ? fileIdMatch[1] : null;
+            let finalUrl = result.url;
+            if (fileId) {
+               finalUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+            }
+
+            const userRef = doc(db, 'Alumnos', user.ID_Alumno);
+            await updateDoc(userRef, {
+              Foto_Alumno: finalUrl
+            });
+
+            const updatedUser = { ...user, Foto_Alumno: finalUrl };
+            localStorage.setItem('mi_mambo_user', JSON.stringify(updatedUser));
+
+            alert('Foto de perfil actualizada correctamente.');
+            window.location.reload();
+          } else {
+            throw new Error(result.message || 'Error en el script de subida');
+          }
+        } catch (innerError: any) {
+          console.error("Error inside onload handling:", innerError);
+          alert(`Error al procesar la respuesta o guardar la foto: ${innerError.message || innerError}`);
+        } finally {
+          setUploading(false);
         }
       };
 
-    } catch (error) {
-      console.error("Error uploading photo:", error);
-      alert('Error al subir la foto.');
-    } finally {
+    } catch (error: any) {
+      console.error("Error starting photo upload:", error);
+      alert(`Error al iniciar la subida de foto: ${error.message || error}`);
       setUploading(false);
     }
   };
