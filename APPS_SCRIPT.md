@@ -19,7 +19,11 @@ function doPost(e) {
     var file = folder.createFile(blob);
     
     // Hacer el archivo público para que se vea en la app
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (sharingError) {
+      // Ignorar error de permisos de compartir si está deshabilitado por las políticas de tu organización/Workspace
+    }
     
     // Generar enlace directo de visualización
     var fileId = file.getId();
