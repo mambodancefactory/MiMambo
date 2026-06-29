@@ -384,18 +384,15 @@ export default function Dashboard() {
       />
 
       {/* 1 - Upcoming Classes Slider */}
-      <div className="relative z-10 -mx-4 -mt-6 bg-[#2e2f43] rounded-b-[40px] pt-6 pb-8 shadow-[0_20px_40px_rgba(46,47,67,0.18)] overflow-hidden">
-        {/* Ambient elements inside dark container */}
-        <div className="absolute inset-0 bg-radial-gradient from-white/[0.02] to-transparent pointer-events-none" />
-        <div className="absolute -top-40 -left-40 w-80 h-80 bg-[#ffba15]/10 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-white/5 rounded-full blur-[100px] pointer-events-none" />
+      <div className="relative z-10 -mx-4 -mt-6 bg-[#DBDBDB] rounded-b-[40px] pt-6 pb-8 shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden">
+        {/* Ambient elements inside container */}
+        <div className="absolute inset-0 bg-radial-gradient from-white/[0.1] to-transparent pointer-events-none" />
+        <div className="absolute -top-40 -left-40 w-80 h-80 bg-white/20 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-[#2e2f43]/5 rounded-full blur-[100px] pointer-events-none" />
 
         {/* Title inside the container */}
         <div className="text-center px-6 mb-6 relative z-10">
-          <p className="text-[#ffba15] text-[10px] font-black uppercase tracking-[0.2em] mb-1">
-            Tus clases de esta semana
-          </p>
-          <h2 className="text-xl font-black text-white tracking-tight">
+          <p className="text-[#2e2f43]/70 text-[10px] font-black uppercase tracking-[0.2em] mb-1">
             {loading ? (
               <span className="opacity-50">Cargando tus clases...</span>
             ) : upcomingClasses && upcomingClasses.length > 0 ? (
@@ -405,13 +402,13 @@ export default function Dashboard() {
             ) : (
               "No tienes clases esta semana"
             )}
-          </h2>
+          </p>
         </div>
         
         {loading ? (
-            <div className="h-[550px] mx-8 bg-white/5 rounded-[32px] animate-pulse flex flex-col items-center justify-center">
-                <Loader2 className="text-[#ffba15] animate-spin mb-3" size={32} />
-                <p className="text-white/40 text-xs font-bold">Cargando agenda...</p>
+            <div className="h-[550px] mx-8 bg-white/20 rounded-[32px] animate-pulse flex flex-col items-center justify-center">
+                <Loader2 className="text-[#2e2f43]/70 animate-spin mb-3" size={32} />
+                <p className="text-[#2e2f43]/60 text-xs font-bold">Cargando agenda...</p>
             </div>
         ) : upcomingClasses && upcomingClasses.length > 0 ? (
             <div className="relative h-[550px] w-full flex justify-center items-center overflow-hidden" style={{ perspective: 1000 }}>
@@ -611,10 +608,10 @@ export default function Dashboard() {
             </div>
         ) : (
             <div className="mx-6 py-12 text-center relative z-10">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center border border-white/10 text-white/30">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#2e2f43]/5 flex items-center justify-center border border-[#2e2f43]/10 text-[#2e2f43]/50">
                     <Calendar size={28} />
                 </div>
-                <p className="text-sm text-white/50 font-bold max-w-xs mx-auto">
+                <p className="text-sm text-[#2e2f43]/70 font-bold max-w-xs mx-auto">
                     No tienes clases programadas esta semana.
                 </p>
             </div>

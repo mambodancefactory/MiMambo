@@ -90,18 +90,77 @@ export default function Profile() {
     setUploading(true);
 
     try {
+      const scriptUrl = import.meta.env.VITE_DRIVE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzuskWEL3l_xDCbo9ZaA_RloixanV17judEAu0vYeGabIQn_CoBTyrn9Pt-pSAEZz9S/exec";
+      
+      if (!scriptUrl) {
+        // Fallback: compress image to a small base64 JPEG and save directly to Firestore
+        const resizeImageToBase64 = (fileToResize: File, maxWidth = 200, maxHeight = 200): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            const fileReader = new FileReader();
+            fileReader.readAsDataURL(fileToResize);
+            fileReader.onload = (event) => {
+              const img = new Image();
+              img.src = event.target?.result as string;
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                  if (width > maxWidth) {
+                    height = Math.round((height * maxWidth) / width);
+                    width = maxWidth;
+                  }
+                } else {
+                  if (height > maxHeight) {
+                    width = Math.round((width * maxHeight) / height);
+                    height = maxHeight;
+                  }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                  reject(new Error('Could not get canvas context'));
+                  return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                resolve(dataUrl);
+              };
+              img.onerror = (err) => reject(err);
+            };
+            fileReader.onerror = (err) => reject(err);
+          });
+        };
+
+        try {
+          const compressedBase64 = await resizeImageToBase64(file);
+          const userRef = doc(db, 'Alumnos', user.ID_Alumno);
+          await updateDoc(userRef, {
+            Foto_Alumno: compressedBase64
+          });
+
+          const updatedUser = { ...user, Foto_Alumno: compressedBase64 };
+          localStorage.setItem('mi_mambo_user', JSON.stringify(updatedUser));
+
+          alert('Foto de perfil actualizada correctamente.');
+          window.location.reload();
+          return;
+        } catch (resizeErr) {
+          console.error("Error compressing/uploading fallback image:", resizeErr);
+          alert('Error de configuración: Falta la URL del script de Drive.');
+          setUploading(false);
+          return;
+        }
+      }
+
       const reader = new FileReader();
       reader.readAsDataURL(file);
       
       reader.onload = async () => {
         const base64Data = (reader.result as string).split(',')[1];
-        const scriptUrl = import.meta.env.VITE_DRIVE_SCRIPT_URL;
-        
-        if (!scriptUrl) {
-          alert('Error de configuración: Falta la URL del script de Drive.');
-          setUploading(false);
-          return;
-        }
 
         const formData = new FormData();
         formData.append('data', base64Data);
